@@ -20,6 +20,8 @@
 #include <glfw/glfw3.h>
 #include <glm/glm.hpp>
 
+#include "utils/ioutils.h"
+
 // std
 #include <vector>
 #include <algorithm>
@@ -63,12 +65,17 @@ typedef struct VrakBuffer_T {
         VmaAllocationInfo allocation_info = {};
 } *VrakBuffer;
 
-struct vertex {
+typedef struct VrakPipeline_T {
+        VkPipeline vk_pipeline = VK_NULL_HANDLE;
+        VkPipelineLayout vk_pipeline_layout = VK_NULL_HANDLE;
+} *VrakPipeline;
+
+struct Vertex {
         glm::vec3 position;
         glm::vec3 color;
 };
 
-static struct vertex vertices[] = {
+static Vertex vertices[] = {
     { {  0.0f,  0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f } },
     { { -0.5f, -0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f } },
     { {  0.5f, -0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f } }
@@ -142,6 +149,29 @@ void find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p
         }
 
         error_fatal("Can't not found queue to support present", VK_ERROR_INITIALIZATION_FAILED);
+}
+
+VkResult load_shader_module(VkDevice device, const char *path, VkShaderModule *p_shader_module)
+{
+        char *buf;
+        size_t size;
+        VkResult err;
+
+        buf = io_bytebuf_read(path, &size);
+
+        VkShaderModuleCreateInfo shader_module_create_info = {
+                /* sType */ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                /* pNext */ VK_NULL_HANDLE,
+                /* flags */ 0,
+                /* codeSize */ size,
+                /* pCode */ reinterpret_cast<uint32_t *>(buf),
+        };
+
+        err = vkCreateShaderModule(device, &shader_module_create_info, VK_NULL_HANDLE, p_shader_module);
+
+        io_bytebuf_free(buf);
+
+        return err;
 }
 
 VkResult command_buffer_alloc(const VrakDriver *driver, VkCommandBuffer *p_command_buffer)
@@ -258,6 +288,44 @@ void memory_image_barrier(VkCommandBuffer command_buffer,
           1,
           &barrier
         );
+}
+
+VkResult pipeline_create(const VrakDriver *driver, VrakPipeline *p_pipeline)
+{
+        VkResult U_ASSERT_ONLY err;
+
+        VrakPipeline tmp = memnew<VrakPipeline_T>();
+
+        VkShaderModule vertex_shader_module;
+        VkShaderModule fragment_shader_module;
+
+        err = load_shader_module(driver->device, "shaders/spir-v/simple_vertex.spv", &vertex_shader_module);
+        if (err)
+                return err;
+
+        err = load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module);
+        if (err)
+                return err;
+
+        VkGraphicsPipelineCreateInfo graphics_pipeline_ci = {
+             .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR,
+        };
+
+        *p_pipeline = tmp;
+
+        err = vkCreateGraphicsPipelines(driver->device, VK_NULL_HANDLE, 1, &graphics_pipeline_ci, VK_NULL_HANDLE, &tmp->vk_pipeline);
+
+        vkDestroyShaderModule(driver->device, vertex_shader_module, VK_NULL_HANDLE);
+        vkDestroyShaderModule(driver->device, fragment_shader_module, VK_NULL_HANDLE);
+
+        return err;
+}
+
+void pipeline_destroy(const VrakDriver *driver, VrakPipeline pipeline)
+{
+        vkDestroyPipelineLayout(driver->device, pipeline->vk_pipeline_layout, VK_NULL_HANDLE);
+        vkDestroyPipeline(driver->device, pipeline->vk_pipeline, VK_NULL_HANDLE);
+        memdel(pipeline);
 }
 
 VrakDriver *driver_create(GLFWwindow *window)
@@ -533,23 +601,26 @@ int main()
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-        GLFWwindow* window = glfwCreateWindow(800, 600, "Veronak Cube", nullptr, nullptr);
-
-        VrakDriver* driver = driver_create(window);
-
+        GLFWwindow* window;
+        VrakDriver* driver;
         VrakSwapchainEXT swapchain;
+        VrakBuffer vertex_buffer;
+        VkCommandBuffer command_buffer;
+        VrakPipeline pipeline;
+
+        window = glfwCreateWindow(800, 600, "Veronak Cube", nullptr, nullptr);
+        driver = driver_create(window);
         swapchain_create(driver, &swapchain);
 
         // create vertex buffer
-        VrakBuffer vertex_buffer;
         err = buffer_create(driver, sizeof(vertices), &vertex_buffer);
         if (err)
                 error_fatal("Failed to create vertex buffer", err);
 
         memory_write(driver, vertex_buffer, sizeof(vertices), (void*) vertices);
 
-        VkCommandBuffer command_buffer;
         command_buffer_alloc(driver, &command_buffer);
+        pipeline_create(driver, &pipeline);
 
         while (!glfwWindowShouldClose(window)) {
                 cmd_begin(command_buffer);
@@ -557,10 +628,14 @@ int main()
                 glfwPollEvents();
         }
 
-        swapchain_destroy(driver, swapchain);
+        pipeline_destroy(driver, pipeline);
         command_buffer_free(driver, command_buffer);
         buffer_destroy(driver, vertex_buffer);
+        swapchain_destroy(driver, swapchain);
         driver_destroy(driver);
+        glfwDestroyWindow(window);
+
+        glfwTerminate();
         
         return 0;
 }

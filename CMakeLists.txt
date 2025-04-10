@@ -28,6 +28,12 @@ link_directories(
 
 add_executable(${PROJECT_NAME} ${ENGINE_MODULE_SOURCES})
 
+add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${PROJECT_SOURCE_DIR}/shaders/spir-v
+    ${CMAKE_BINARY_DIR}/shaders/spir-v
+)
+
 target_link_libraries(${PROJECT_NAME}
   glfw3
 )
