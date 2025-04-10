@@ -1,0 +1,562 @@
+#include <stdio.h>
+
+#include <veronica/typedef.h>
+#include "utils/enumutils.h"
+
+#ifndef VOLK_LOADER
+#define VOLK_LOADER
+#endif
+
+#ifdef VOLK_LOADER
+#define VOLK_IMPLEMENTATION
+#include <volk/volk.h>
+#else
+#include <vulkan/vulkan.h>
+#endif
+
+#define VMA_IMPLEMENTATION
+#include <vma/vk_mem_alloc.h>
+
+#include <glfw/glfw3.h>
+#include <glm/glm.hpp>
+
+#include "main.h"
+
+// std
+#include <vector>
+#include <algorithm>
+
+struct VrakDriver {
+        uint32_t version = 0;
+        VkInstance instance = VK_NULL_HANDLE;
+        VkSurfaceKHR surface = VK_NULL_HANDLE;
+        VkPhysicalDevice gpu = VK_NULL_HANDLE;
+        uint32_t queue_index = 0;
+        VkQueue queue = VK_NULL_HANDLE;
+        VkDevice device = VK_NULL_HANDLE;
+        VkCommandPool command_pool = VK_NULL_HANDLE;
+        VmaAllocator allocator = VK_NULL_HANDLE;
+};
+
+struct VrakSwapchainResourceEXT {
+        VkImage image = VK_NULL_HANDLE;
+        VkImageView image_view = VK_NULL_HANDLE;
+};
+
+typedef struct VrakSwapchainEXT_T {
+        VkSwapchainKHR vk_swapchain = VK_NULL_HANDLE;
+        VkSurfaceCapabilitiesKHR capabilities = {};
+        uint32_t min_image_count = 0;
+        VkFormat format = VK_FORMAT_UNDEFINED;
+        VkColorSpaceKHR color_space = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+        std::vector<VrakSwapchainResourceEXT> resources;
+} *VrakSwapchainEXT;
+
+typedef struct VrakBuffer_T {
+        VkBuffer vk_buffer = VK_NULL_HANDLE;
+        VkDeviceSize size = 0;
+        VmaAllocation allocation = VK_NULL_HANDLE;
+        VmaAllocationInfo allocation_info = {};
+} *VrakBuffer;
+
+struct vertex {
+        glm::vec3 position;
+        glm::vec3 color;
+};
+
+static struct vertex vertices[] = {
+    { {  0.0f,  0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f } },
+    { { -0.5f, -0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f } },
+    { {  0.5f, -0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f } }
+};
+
+VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice>& devices)
+{
+        for (const auto &device : devices) {
+                VkPhysicalDeviceProperties properties;
+                vkGetPhysicalDeviceProperties(device, &properties);
+                
+                if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                        return device;
+        }
+        
+        assert(std::size(devices) > 0);
+        return devices[0];
+}
+
+VkResult pick_suitable_surface_format(const VrakDriver *driver, VkSurfaceFormatKHR *p_format)
+{
+        VkResult U_ASSERT_ONLY err;
+        
+        uint32_t count;
+        err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, VK_NULL_HANDLE);
+        if (err)
+                return err;
+
+        std::vector<VkSurfaceFormatKHR> formats(count);
+        err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, std::data(formats));
+        if (err)
+                return err;
+
+        for (const auto &item: formats) {
+                switch(item.format) {
+                        case VK_FORMAT_R8G8B8A8_SRGB:
+                        case VK_FORMAT_B8G8R8A8_SRGB:
+                        case VK_FORMAT_R8G8B8A8_UNORM:
+                        case VK_FORMAT_B8G8R8A8_UNORM: {
+                                *p_format = item;
+                                goto TAG_PICK_SUITABLE_SURFACE_FORMAT_END;
+                        }
+                }
+        }
+
+        assert(count >= 1);
+        *p_format = formats[0];
+
+        printf("Can't not found suitable surface format, default use first\n");
+
+TAG_PICK_SUITABLE_SURFACE_FORMAT_END:
+        return VK_SUCCESS;
+}
+
+void find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
+{
+        uint32_t count;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, VK_NULL_HANDLE);
+        
+        std::vector<VkQueueFamilyProperties> properties(count);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, std::data(properties));
+        
+        for (uint32_t i = 0; i < count; i++) {
+                VkQueueFamilyProperties property = properties[i];
+                VkBool32 supported = VK_FALSE;
+                vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
+                if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supported) {
+                        *p_index = i;
+                        return;
+                }
+        }
+
+        error_fatal("Can't not found queue to support present", VK_ERROR_INITIALIZATION_FAILED);
+}
+
+VkResult command_buffer_alloc(const VrakDriver *driver, VkCommandBuffer *p_command_buffer)
+{
+        VkCommandBufferAllocateInfo allocate_info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = driver->command_pool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1
+        };
+
+        return vkAllocateCommandBuffers(driver->device, &allocate_info, p_command_buffer);
+}
+
+void command_buffer_free(const VrakDriver* driver, VkCommandBuffer command_buffer)
+{
+        vkFreeCommandBuffers(driver->device, driver->command_pool, 1, &command_buffer);
+}
+
+void cmd_begin(VkCommandBuffer command_buffer)
+{
+        VkCommandBufferBeginInfo begin_info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT | VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+        };
+
+        vkBeginCommandBuffer(command_buffer, &begin_info);
+}
+
+void cmd_end(VkCommandBuffer command_buffer)
+{
+        vkEndCommandBuffer(command_buffer);
+}
+
+VkResult buffer_create(const VrakDriver* driver, VkDeviceSize size, VrakBuffer *p_buffer)
+{
+        VkBufferCreateInfo buffer_ci = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size = size,
+            .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        };
+
+        VmaAllocationCreateInfo allocation_info = {
+            .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO,
+        };
+
+        VrakBuffer tmp = memnew<VrakBuffer_T>();
+        tmp->size = size;
+        *p_buffer = tmp;
+
+        return vmaCreateBuffer(driver->allocator, &buffer_ci, &allocation_info, &tmp->vk_buffer, &tmp->allocation, &tmp->allocation_info);
+}
+
+void buffer_destroy(VrakDriver* driver, VrakBuffer buffer)
+{
+        vmaDestroyBuffer(driver->allocator, buffer->vk_buffer, buffer->allocation);
+        memdel(buffer);
+}
+
+void memory_read(const VrakDriver* driver, VrakBuffer buffer, size_t size, void* dst)
+{
+        void* src;
+        vmaMapMemory(driver->allocator, buffer->allocation, &src);
+        memcpy(dst, src, size);
+        vmaUnmapMemory(driver->allocator, buffer->allocation);
+}
+
+void memory_write(const VrakDriver *driver, VrakBuffer buffer, size_t size, void *src)
+{
+        void* dst;
+        vmaMapMemory(driver->allocator, buffer->allocation, &dst);
+        memcpy(src, dst, size);
+        vmaUnmapMemory(driver->allocator, buffer->allocation);
+}
+
+void memory_image_barrier(VkCommandBuffer command_buffer,
+                          VkImage image,
+                          VkAccessFlags src,
+                          VkAccessFlags dst,
+                          VkImageLayout old_layout,
+                          VkImageLayout new_layout)
+{
+        VkImageSubresourceRange subresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        };
+
+        VkImageMemoryBarrier barrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = src,
+            .dstAccessMask = dst,
+            .oldLayout = old_layout,
+            .newLayout = new_layout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange = subresource,
+        };
+
+        vkCmdPipelineBarrier(
+          command_buffer,
+          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+          0,
+          0,
+          VK_NULL_HANDLE,
+          0,
+          VK_NULL_HANDLE,
+          1,
+          &barrier
+        );
+}
+
+VrakDriver *driver_create(GLFWwindow *window)
+{
+        VkResult U_ASSERT_ONLY err;
+        
+        VrakDriver *driver = memnew<VrakDriver>();
+        
+#ifdef VOLK_LOADER
+        /*
+         * initialize volk loader to dynamic load about instance function
+         * api pointer.
+         */
+        err = volkInitialize();
+        if (err != VK_SUCCESS)
+                error_fatal("Failed to initialize volk loader", err);
+#endif
+        
+        err = vkEnumerateInstanceVersion(&driver->version);
+        assert(!err);
+        
+        printf("Vulkan %u.%u.%u\n",
+               VK_VERSION_MAJOR(driver->version),
+               VK_VERSION_MINOR(driver->version),
+               VK_VERSION_PATCH(driver->version));
+        
+        VkApplicationInfo info = {
+            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+            .pApplicationName = "Veronak Engine",
+            .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+            .pEngineName = "Veronak Engine",
+            .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+            .apiVersion = driver->version
+        };
+
+        uint32_t count;
+        const char **required = glfwGetRequiredInstanceExtensions(&count);
+
+        std::vector<const char *> extensions;
+
+        for (int i = 0; i < count; ++i)
+                extensions.push_back(required[i]);
+
+        std::vector<const char *> layers = {
+                "VK_LAYER_KHRONOS_validation"
+        };
+
+        VkInstanceCreateInfo instance_ci = {
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pApplicationInfo = &info,
+            .enabledLayerCount = (uint32_t) std::size(layers),
+            .ppEnabledLayerNames = std::data(layers),
+            .enabledExtensionCount = (uint32_t) std::size(extensions),
+            .ppEnabledExtensionNames = std::data(extensions),
+        };
+        
+        err = vkCreateInstance(&instance_ci, VK_NULL_HANDLE, &driver->instance);
+        if (err)
+                error_fatal("Failed to create instance", err);
+
+#ifdef VOLK_LOADER
+        volkLoadInstance(driver->instance);
+#endif
+
+        err = vkEnumeratePhysicalDevices(driver->instance, &count, VK_NULL_HANDLE);
+        if (err)
+                error_fatal("Failed to enumerate physical device list count", err);
+        
+        printf("Enumerate vulkan physical device count: %u\n", count);
+        
+        std::vector<VkPhysicalDevice> devices(count);
+        err = vkEnumeratePhysicalDevices(driver->instance, &count, std::data(devices));
+        if (err)
+                error_fatal("Failed to enumerate physical device list data", err);
+        
+        driver->gpu = pick_discrete_device(devices);
+
+        err = glfwCreateWindowSurface(driver->instance, window, VK_NULL_HANDLE, &driver->surface);
+        if (err)
+                error_fatal("Failed to create surface", err);
+
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(driver->gpu, &properties);
+        printf("Use GPU %s\n", properties.deviceName);
+        
+        float priorities = 1.0f;
+        
+        find_queue_index(driver->gpu, driver->surface, &driver->queue_index);
+        
+        VkDeviceQueueCreateInfo queue_ci = {
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueFamilyIndex = driver->queue_index,
+            .queueCount = 1,
+            .pQueuePriorities = &priorities,
+        };
+
+        std::vector<const char *> device_extensions = {
+                "VK_KHR_swapchain"
+        };
+
+        VkDeviceCreateInfo device_ci = {
+            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .queueCreateInfoCount = 1,
+            .pQueueCreateInfos = &queue_ci,
+            .enabledExtensionCount = (uint32_t) std::size(device_extensions),
+            .ppEnabledExtensionNames = std::data(device_extensions),
+        };
+        
+        err = vkCreateDevice(driver->gpu, &device_ci, VK_NULL_HANDLE, &driver->device);
+        if (err)
+                error_fatal("Failed to create logic device", err);
+        
+#ifdef VOLK_LOADER
+        volkLoadDevice(driver->device);
+#endif
+        
+        vkGetDeviceQueue(driver->device, driver->queue_index, 0, &driver->queue);
+        
+        VkCommandPoolCreateInfo command_pool_ci = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = driver->queue_index,
+        };
+        
+        err = vkCreateCommandPool(driver->device, &command_pool_ci, VK_NULL_HANDLE, &driver->command_pool);
+        if (err)
+                error_fatal("Failed to create command pool", err);
+        
+        VmaVulkanFunctions functions = {
+            .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
+            .vkGetDeviceProcAddr = vkGetDeviceProcAddr,
+        };
+        
+        VmaAllocatorCreateInfo allocator_ci = {
+            .physicalDevice = driver->gpu,
+            .device = driver->device,
+            .pVulkanFunctions = &functions,
+            .instance = driver->instance,
+        };
+        
+        err = vmaCreateAllocator(&allocator_ci, &driver->allocator);
+        if (err)
+                error_fatal("Failed to create VMA allocator", err);
+        
+        return driver;
+}
+
+void driver_destroy(VrakDriver* driver)
+{
+        vmaDestroyAllocator(driver->allocator);
+        vkDestroyCommandPool(driver->device, driver->command_pool, VK_NULL_HANDLE);
+        vkDestroyDevice(driver->device, VK_NULL_HANDLE);
+        vkDestroySurfaceKHR(driver->instance, driver->surface, VK_NULL_HANDLE);
+        vkDestroyInstance(driver->instance, VK_NULL_HANDLE);
+        memdel(driver);
+}
+
+VkResult image_view2d_create(const VrakDriver *driver, VkImage image, VkFormat format, VkImageView *p_view2d)
+{
+        VkImageViewCreateInfo image_view2d_ci = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = image,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = format,
+            .components = {
+                .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1
+            }
+        };
+
+        return vkCreateImageView(driver->device, &image_view2d_ci, VK_NULL_HANDLE, p_view2d);
+}
+
+void image_view2d_destroy(const VrakDriver *driver, VkImageView view)
+{
+        vkDestroyImageView(driver->device, view, VK_NULL_HANDLE);
+}
+
+VkResult swapchain_create(VrakDriver *driver, VrakSwapchainEXT *p_swapchain)
+{
+        VkResult U_ASSERT_ONLY err;
+
+        VrakSwapchainEXT tmp = memnew<VrakSwapchainEXT_T>();
+
+        err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &tmp->capabilities);
+        if (err)
+                return err;
+
+        uint32_t min = tmp->capabilities.minImageCount;
+        uint32_t max = tmp->capabilities.maxImageCount;
+        tmp->min_image_count = std::clamp(min + 1, min, max);
+
+        *p_swapchain = tmp;
+
+        VkSurfaceFormatKHR surface_format;
+        err = pick_suitable_surface_format(driver, &surface_format);
+        if (err)
+                return err;
+
+        tmp->format = surface_format.format;
+        tmp->color_space = surface_format.colorSpace;
+
+        VkSwapchainCreateInfoKHR swapchain_ci = {
+            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .surface = driver->surface,
+            .minImageCount = tmp->min_image_count,
+            .imageFormat = tmp->format,
+            .imageColorSpace = tmp->color_space,
+            .imageExtent = tmp->capabilities.currentExtent,
+            .imageArrayLayers = 1,
+            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .preTransform = tmp->capabilities.currentTransform,
+            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+            .clipped = VK_TRUE,
+            .oldSwapchain = VK_NULL_HANDLE,
+        };
+
+        err = vkCreateSwapchainKHR(driver->device, &swapchain_ci, VK_NULL_HANDLE, &tmp->vk_swapchain);
+        if (err)
+                return err;
+
+        uint32_t count;
+        err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, VK_NULL_HANDLE);
+        if (err)
+                return err;
+
+        std::vector<VkImage> images(count);
+        err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, std::data(images));
+        if (err)
+                return err;
+
+        tmp->resources.resize(tmp->min_image_count);
+        for (int i = 0; i < tmp->min_image_count; ++i) {
+                tmp->resources[i].image = images[i];
+                err = image_view2d_create(driver, tmp->resources[i].image, tmp->format, &(tmp->resources[i].image_view));
+                if (err)
+                        return err;
+        }
+
+        return VK_SUCCESS;
+}
+
+void swapchain_destroy(VrakDriver *driver, VrakSwapchainEXT swapchain)
+{
+        for (int i = 0; i < swapchain->min_image_count; ++i)
+                image_view2d_destroy(driver, swapchain->resources[i].image_view);
+        vkDestroySwapchainKHR(driver->device, swapchain->vk_swapchain, VK_NULL_HANDLE);
+        memdel(swapchain);
+}
+
+int main()
+{
+        VkResult U_ASSERT_ONLY err;
+
+        /*
+         * close stdout and stderr write to buf, let direct
+         * output.
+         */
+        setvbuf(stdout, NULL, _IONBF, 0);
+        setvbuf(stderr, NULL, _IONBF, 0);
+        
+        glfwInit();
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+        GLFWwindow* window = glfwCreateWindow(800, 600, "Veronak Cube", nullptr, nullptr);
+
+        VrakDriver* driver = driver_create(window);
+
+        VrakSwapchainEXT swapchain;
+        swapchain_create(driver, &swapchain);
+
+        // create vertex buffer
+        VrakBuffer vertex_buffer;
+        err = buffer_create(driver, sizeof(vertices), &vertex_buffer);
+        if (err)
+                error_fatal("Failed to create vertex buffer", err);
+
+        memory_write(driver, vertex_buffer, sizeof(vertices), (void*) vertices);
+
+        VkCommandBuffer command_buffer;
+        command_buffer_alloc(driver, &command_buffer);
+
+        while (!glfwWindowShouldClose(window)) {
+                cmd_begin(command_buffer);
+                cmd_end(command_buffer);
+                glfwPollEvents();
+        }
+
+        swapchain_destroy(driver, swapchain);
+        command_buffer_free(driver, command_buffer);
+        buffer_destroy(driver, vertex_buffer);
+        driver_destroy(driver);
+        
+        return 0;
+}
