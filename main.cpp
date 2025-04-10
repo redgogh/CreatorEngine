@@ -81,6 +81,8 @@ static Vertex vertices[] = {
     { {  0.5f, -0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f } }
 };
 
+void swapchain_destroy(const VrakDriver *driver, VrakSwapchainEXT swapchain);
+
 VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice>& devices)
 {
         for (const auto &device : devices) {
@@ -97,7 +99,7 @@ VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice>& devic
 
 VkResult pick_suitable_surface_format(const VrakDriver *driver, VkSurfaceFormatKHR *p_format)
 {
-        VkResult U_ASSERT_ONLY err;
+        VkResult err;
         
         uint32_t count;
         err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, VK_NULL_HANDLE);
@@ -292,46 +294,61 @@ void memory_image_barrier(VkCommandBuffer command_buffer,
 
 VkResult pipeline_create(const VrakDriver *driver, VrakPipeline *p_pipeline)
 {
-        VkResult U_ASSERT_ONLY err;
+        VkResult err;
+        VrakPipeline tmp = VK_NULL_HANDLE;
+        VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
+        VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
+        VkPipeline pipeline;
+        VkGraphicsPipelineCreateInfo pipeline_ci = {};
 
-        VrakPipeline tmp = memnew<VrakPipeline_T>();
+        tmp = memnew<VrakPipeline_T>();
 
-        VkShaderModule vertex_shader_module;
-        VkShaderModule fragment_shader_module;
+        if ((err = load_shader_module(driver->device, "shaders/spir-v/simple_vertex.spv", &vertex_shader_module)))
+                goto TAG_PIPELINE_CREATE_OUT;
 
-        err = load_shader_module(driver->device, "shaders/spir-v/simple_vertex.spv", &vertex_shader_module);
-        if (err)
-                return err;
+        if ((err = load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module)))
+                goto TAG_PIPELINE_CREATE_OUT;
 
-        err = load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module);
-        if (err)
-                return err;
-
-        VkGraphicsPipelineCreateInfo graphics_pipeline_ci = {
+        pipeline_ci = {
              .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR,
         };
 
+        if ((err = vkCreateGraphicsPipelines(driver->device, VK_NULL_HANDLE, 1, &pipeline_ci, VK_NULL_HANDLE, &pipeline)))
+                goto TAG_PIPELINE_CREATE_OUT;
+
+        tmp->vk_pipeline = pipeline;
         *p_pipeline = tmp;
 
-        err = vkCreateGraphicsPipelines(driver->device, VK_NULL_HANDLE, 1, &graphics_pipeline_ci, VK_NULL_HANDLE, &tmp->vk_pipeline);
+TAG_PIPELINE_CREATE_OUT:
+        if (err) {
+                memdel(tmp);
+        }
 
-        vkDestroyShaderModule(driver->device, vertex_shader_module, VK_NULL_HANDLE);
-        vkDestroyShaderModule(driver->device, fragment_shader_module, VK_NULL_HANDLE);
+        if (vertex_shader_module != VK_NULL_HANDLE)
+                vkDestroyShaderModule(driver->device, vertex_shader_module, VK_NULL_HANDLE);
+
+        if (fragment_shader_module != VK_NULL_HANDLE)
+                vkDestroyShaderModule(driver->device, fragment_shader_module, VK_NULL_HANDLE);
 
         return err;
 }
 
 void pipeline_destroy(const VrakDriver *driver, VrakPipeline pipeline)
 {
-        vkDestroyPipelineLayout(driver->device, pipeline->vk_pipeline_layout, VK_NULL_HANDLE);
+        if (pipeline == VK_NULL_HANDLE || pipeline->vk_pipeline == VK_NULL_HANDLE)
+                return;
+
+        if (pipeline->vk_pipeline_layout != VK_NULL_HANDLE)
+                vkDestroyPipelineLayout(driver->device, pipeline->vk_pipeline_layout, VK_NULL_HANDLE);
+
         vkDestroyPipeline(driver->device, pipeline->vk_pipeline, VK_NULL_HANDLE);
         memdel(pipeline);
 }
 
-VrakDriver *driver_create(GLFWwindow *window)
+VrakDriver *vrak_driver_initialize(GLFWwindow *window)
 {
-        VkResult U_ASSERT_ONLY err;
-        
+        VkResult err;
+
         VrakDriver *driver = memnew<VrakDriver>();
         
 #ifdef VOLK_LOADER
@@ -339,13 +356,12 @@ VrakDriver *driver_create(GLFWwindow *window)
          * initialize volk loader to dynamic load about instance function
          * api pointer.
          */
-        err = volkInitialize();
-        if (err != VK_SUCCESS)
+        if ((err = volkInitialize()))
                 error_fatal("Failed to initialize volk loader", err);
 #endif
         
-        err = vkEnumerateInstanceVersion(&driver->version);
-        assert(!err);
+        if ((err = vkEnumerateInstanceVersion(&driver->version)))
+                error_fatal("Can't not get instance version", err);
         
         printf("Vulkan %u.%u.%u\n",
                VK_VERSION_MAJOR(driver->version),
@@ -381,30 +397,26 @@ VrakDriver *driver_create(GLFWwindow *window)
             .enabledExtensionCount = (uint32_t) std::size(extensions),
             .ppEnabledExtensionNames = std::data(extensions),
         };
-        
-        err = vkCreateInstance(&instance_ci, VK_NULL_HANDLE, &driver->instance);
-        if (err)
+
+        if ((err = vkCreateInstance(&instance_ci, VK_NULL_HANDLE, &driver->instance)))
                 error_fatal("Failed to create instance", err);
 
 #ifdef VOLK_LOADER
         volkLoadInstance(driver->instance);
 #endif
 
-        err = vkEnumeratePhysicalDevices(driver->instance, &count, VK_NULL_HANDLE);
-        if (err)
+        if ((err = vkEnumeratePhysicalDevices(driver->instance, &count, VK_NULL_HANDLE)))
                 error_fatal("Failed to enumerate physical device list count", err);
         
         printf("Enumerate vulkan physical device count: %u\n", count);
         
         std::vector<VkPhysicalDevice> devices(count);
-        err = vkEnumeratePhysicalDevices(driver->instance, &count, std::data(devices));
-        if (err)
+        if ((err = vkEnumeratePhysicalDevices(driver->instance, &count, std::data(devices))))
                 error_fatal("Failed to enumerate physical device list data", err);
         
         driver->gpu = pick_discrete_device(devices);
 
-        err = glfwCreateWindowSurface(driver->instance, window, VK_NULL_HANDLE, &driver->surface);
-        if (err)
+        if ((err = glfwCreateWindowSurface(driver->instance, window, VK_NULL_HANDLE, &driver->surface)))
                 error_fatal("Failed to create surface", err);
 
         VkPhysicalDeviceProperties properties;
@@ -433,9 +445,8 @@ VrakDriver *driver_create(GLFWwindow *window)
             .enabledExtensionCount = (uint32_t) std::size(device_extensions),
             .ppEnabledExtensionNames = std::data(device_extensions),
         };
-        
-        err = vkCreateDevice(driver->gpu, &device_ci, VK_NULL_HANDLE, &driver->device);
-        if (err)
+
+        if ((err = vkCreateDevice(driver->gpu, &device_ci, VK_NULL_HANDLE, &driver->device)))
                 error_fatal("Failed to create logic device", err);
         
 #ifdef VOLK_LOADER
@@ -450,8 +461,7 @@ VrakDriver *driver_create(GLFWwindow *window)
             .queueFamilyIndex = driver->queue_index,
         };
         
-        err = vkCreateCommandPool(driver->device, &command_pool_ci, VK_NULL_HANDLE, &driver->command_pool);
-        if (err)
+        if ((err = vkCreateCommandPool(driver->device, &command_pool_ci, VK_NULL_HANDLE, &driver->command_pool)))
                 error_fatal("Failed to create command pool", err);
         
         VmaVulkanFunctions functions = {
@@ -466,14 +476,13 @@ VrakDriver *driver_create(GLFWwindow *window)
             .instance = driver->instance,
         };
         
-        err = vmaCreateAllocator(&allocator_ci, &driver->allocator);
-        if (err)
+        if ((err = vmaCreateAllocator(&allocator_ci, &driver->allocator)))
                 error_fatal("Failed to create VMA allocator", err);
-        
+
         return driver;
 }
 
-void driver_destroy(VrakDriver* driver)
+void vrak_driver_destroy(VrakDriver* driver)
 {
         vmaDestroyAllocator(driver->allocator);
         vkDestroyCommandPool(driver->device, driver->command_pool, VK_NULL_HANDLE);
@@ -515,29 +524,33 @@ void image_view2d_destroy(const VrakDriver *driver, VkImageView view)
 
 VkResult swapchain_create(VrakDriver *driver, VrakSwapchainEXT *p_swapchain)
 {
-        VkResult U_ASSERT_ONLY err;
+        VkResult err;
+        VrakSwapchainEXT tmp = VK_NULL_HANDLE;
+        uint32_t min = 0;
+        uint32_t max = 0;
+        VkSurfaceFormatKHR surface_format = {};
+        VkSwapchainCreateInfoKHR swapchain_ci = {};
+        uint32_t count = 0;
+        std::vector<VkImage> images;
 
-        VrakSwapchainEXT tmp = memnew<VrakSwapchainEXT_T>();
+        tmp = memnew<VrakSwapchainEXT_T>();
 
-        err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &tmp->capabilities);
-        if (err)
-                return err;
+        if ((err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &tmp->capabilities)))
+                goto TAG_SWAPCHAIN_CREATE_OUT;
 
-        uint32_t min = tmp->capabilities.minImageCount;
-        uint32_t max = tmp->capabilities.maxImageCount;
+        min = tmp->capabilities.minImageCount;
+        max = tmp->capabilities.maxImageCount;
         tmp->min_image_count = std::clamp(min + 1, min, max);
 
         *p_swapchain = tmp;
 
-        VkSurfaceFormatKHR surface_format;
-        err = pick_suitable_surface_format(driver, &surface_format);
-        if (err)
-                return err;
+        if ((err = pick_suitable_surface_format(driver, &surface_format)))
+                goto TAG_SWAPCHAIN_CREATE_OUT;
 
         tmp->format = surface_format.format;
         tmp->color_space = surface_format.colorSpace;
 
-        VkSwapchainCreateInfoKHR swapchain_ci = {
+        swapchain_ci = {
             .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
             .surface = driver->surface,
             .minImageCount = tmp->min_image_count,
@@ -554,42 +567,48 @@ VkResult swapchain_create(VrakDriver *driver, VrakSwapchainEXT *p_swapchain)
             .oldSwapchain = VK_NULL_HANDLE,
         };
 
-        err = vkCreateSwapchainKHR(driver->device, &swapchain_ci, VK_NULL_HANDLE, &tmp->vk_swapchain);
-        if (err)
-                return err;
+        if ((err = vkCreateSwapchainKHR(driver->device, &swapchain_ci, VK_NULL_HANDLE, &tmp->vk_swapchain)))
+                goto TAG_SWAPCHAIN_CREATE_OUT;
 
-        uint32_t count;
-        err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, VK_NULL_HANDLE);
-        if (err)
-                return err;
+        if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, VK_NULL_HANDLE)))
+                goto TAG_SWAPCHAIN_CREATE_OUT;
 
-        std::vector<VkImage> images(count);
-        err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, std::data(images));
-        if (err)
-                return err;
+        images.resize(count);
+        if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, std::data(images))))
+                goto TAG_SWAPCHAIN_CREATE_OUT;
 
         tmp->resources.resize(tmp->min_image_count);
         for (int i = 0; i < tmp->min_image_count; ++i) {
                 tmp->resources[i].image = images[i];
-                err = image_view2d_create(driver, tmp->resources[i].image, tmp->format, &(tmp->resources[i].image_view));
-                if (err)
-                        return err;
+                if ((err = image_view2d_create(driver, tmp->resources[i].image, tmp->format, &(tmp->resources[i].image_view))))
+                        goto TAG_SWAPCHAIN_CREATE_OUT;
         }
 
-        return VK_SUCCESS;
+TAG_SWAPCHAIN_CREATE_OUT:
+        if (err) {
+                swapchain_destroy(driver, tmp);
+        }
+
+        return err;
 }
 
-void swapchain_destroy(VrakDriver *driver, VrakSwapchainEXT swapchain)
+void swapchain_destroy(const VrakDriver *driver, VrakSwapchainEXT swapchain)
 {
-        for (int i = 0; i < swapchain->min_image_count; ++i)
-                image_view2d_destroy(driver, swapchain->resources[i].image_view);
+        if (swapchain == VK_NULL_HANDLE || swapchain->vk_swapchain == VK_NULL_HANDLE)
+                return;
+
+        for (int i = 0; i < swapchain->min_image_count; ++i) {
+                if (swapchain->resources[i].image_view != VK_NULL_HANDLE)
+                        image_view2d_destroy(driver, swapchain->resources[i].image_view);
+        }
+
         vkDestroySwapchainKHR(driver->device, swapchain->vk_swapchain, VK_NULL_HANDLE);
         memdel(swapchain);
 }
 
 int main()
 {
-        VkResult U_ASSERT_ONLY err;
+        VkResult err;
 
         /*
          * close stdout and stderr write to buf, let direct
@@ -597,19 +616,19 @@ int main()
          */
         setvbuf(stdout, NULL, _IONBF, 0);
         setvbuf(stderr, NULL, _IONBF, 0);
-        
+
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-        GLFWwindow* window;
-        VrakDriver* driver;
-        VrakSwapchainEXT swapchain;
-        VrakBuffer vertex_buffer;
-        VkCommandBuffer command_buffer;
-        VrakPipeline pipeline;
+        GLFWwindow* window = VK_NULL_HANDLE;
+        VrakDriver* driver = VK_NULL_HANDLE;
+        VrakSwapchainEXT swapchain = VK_NULL_HANDLE;
+        VrakBuffer vertex_buffer = VK_NULL_HANDLE;
+        VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+        VrakPipeline pipeline = VK_NULL_HANDLE;
 
         window = glfwCreateWindow(800, 600, "Veronak Cube", nullptr, nullptr);
-        driver = driver_create(window);
+        driver = vrak_driver_initialize(window);
         swapchain_create(driver, &swapchain);
 
         // create vertex buffer
@@ -632,7 +651,7 @@ int main()
         command_buffer_free(driver, command_buffer);
         buffer_destroy(driver, vertex_buffer);
         swapchain_destroy(driver, swapchain);
-        driver_destroy(driver);
+        vrak_driver_destroy(driver);
         glfwDestroyWindow(window);
 
         glfwTerminate();
