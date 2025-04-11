@@ -20,8 +20,8 @@
 /* limitations under the License.                                           */
 /*                                                                          */
 /* ======================================================================== */
-#ifndef _VERONICA_IOUTILS_H_
-#define _VERONICA_IOUTILS_H_
+#ifndef _VRONK_IOUTILS_H_
+#define _VRONK_IOUTILS_H_
 
 #include <stdio.h>
 #include <fstream>
@@ -48,4 +48,4 @@ static void io_bytebuf_free(char *buf)
     free(buf);
 }
 
-#endif /* _VERONICA_IOUTILS_H_ */
+#endif /* _VRONK_IOUTILS_H_ */

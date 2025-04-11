@@ -1,8 +1,25 @@
+/* -------------------------------------------------------------------------------- *\
+|*                                                                                  *|
+|*    Copyright (C) 2019-2024 Red Gogh All rights reserved.                         *|
+|*                                                                                  *|
+|*    Licensed under the Apache License, Version 2.0 (the "License");               *|
+|*    you may not use this file except in compliance with the License.              *|
+|*    You may obtain a copy of the License at                                       *|
+|*                                                                                  *|
+|*        http://www.apache.org/licenses/LICENSE-2.0                                *|
+|*                                                                                  *|
+|*    Unless required by applicable law or agreed to in writing, software           *|
+|*    distributed under the License is distributed on an "AS IS" BASIS,             *|
+|*    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.      *|
+|*    See the License for the specific language governing permissions and           *|
+|*    limitations under the License.                                                *|
+|*                                                                                  *|
+\* -------------------------------------------------------------------------------- */
 #include "mctr.h"
 
 #include <stdio.h>
 
-#include <veronica/typedef.h>
+#include <vronk/typedef.h>
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
@@ -202,6 +219,38 @@ VkResult load_shader_module(VkDevice device, const char *path, VkShaderModule *p
         return err;
 }
 
+VkResult fence_create(const VrakDriver *driver, VkFence *p_fence)
+{
+        VkResult err;
+
+        VkFenceCreateInfo fenceCreateInfo = {
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        };
+
+        return vkCreateFence(driver->device, &fenceCreateInfo, VK_NULL_HANDLE, p_fence);
+}
+
+void fence_destroy(const VrakDriver *driver, VkFence fence)
+{
+        vkDestroyFence(driver->device, fence, VK_NULL_HANDLE);
+}
+
+VkResult semaphore_create(const VrakDriver *driver, VkSemaphore *p_semaphore)
+{
+        VkResult err;
+
+        VkSemaphoreCreateInfo semaphoreCreateInfo = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        };
+
+        return vkCreateSemaphore(driver->device, &semaphoreCreateInfo, VK_NULL_HANDLE, p_semaphore);
+}
+
+void semaphore_destroy(const VrakDriver *driver, VkSemaphore semaphore)
+{
+        vkDestroySemaphore(driver->device, semaphore, VK_NULL_HANDLE);
+}
+
 VkResult command_buffer_alloc(const VrakDriver *driver, VkCommandBuffer *p_command_buffer)
 {
         VkCommandBufferAllocateInfo allocate_info = {
@@ -217,81 +266,6 @@ VkResult command_buffer_alloc(const VrakDriver *driver, VkCommandBuffer *p_comma
 void command_buffer_free(const VrakDriver *driver, VkCommandBuffer command_buffer)
 {
         vkFreeCommandBuffers(driver->device, driver->command_pool, 1, &command_buffer);
-}
-
-void cmd_begin(VkCommandBuffer command_buffer)
-{
-        VkCommandBufferBeginInfo begin_info = {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                .flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
-                         VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-        };
-
-        vkBeginCommandBuffer(command_buffer, &begin_info);
-}
-
-void cmd_end(VkCommandBuffer command_buffer)
-{
-        vkEndCommandBuffer(command_buffer);
-}
-
-void cmd_begin_rendering(VkCommandBuffer command_buffer, VrakTexture2D target)
-{
-        cmd_begin(command_buffer);
-
-        VkRenderingAttachmentInfo renderingAttachmentInfo = {
-                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = target->vk_view2d,
-                .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .clearValue = {
-                        .color = {0.0f, 0.0f, 0.0f, 1.0f},
-                },
-        };
-
-        VkRenderingInfo renderingInfo = {
-                .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-                .renderArea = {.offset = {0, 0},
-                        .extent = {target->width, target->height}},
-                .layerCount = 1,
-                .pColorAttachments = &renderingAttachmentInfo,
-                .pDepthAttachment = VK_NULL_HANDLE,
-        };
-
-        vkCmdBeginRendering(command_buffer, &renderingInfo);
-
-        VkViewport viewport = {
-                .width = static_cast<float>(target->width),
-                .height = static_cast<float>(target->height),
-                .minDepth = 0.0f,
-                .maxDepth = 1.0f,
-        };
-
-        VkRect2D scissor = {
-                .offset = {0, 0},
-                .extent = {target->width, target->height}
-        };
-
-        vkCmdSetViewport(command_buffer, 0, 1, &viewport);
-        vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-}
-
-void cmd_end_rendering(VkCommandBuffer command_buffer)
-{
-        vkCmdEndRendering(command_buffer);
-        cmd_end(command_buffer);
-}
-
-void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrakPipeline pipeline)
-{
-        vkCmdBindPipeline(command_buffer, pipeline->bindpoint, pipeline->vk_pipeline);
-}
-
-void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrakBuffer vertex_buffer)
-{
-        VkDeviceSize offsets = 0;
-        vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, &offsets);
 }
 
 VkResult buffer_create(const VrakDriver *driver, VkDeviceSize size, VrakBuffer *p_buffer)
@@ -414,62 +388,6 @@ void texture2d_destroy(const VrakDriver *driver, VrakTexture2D texture)
         memdel(texture);
 }
 
-void memory_read(const VrakDriver *driver, VrakBuffer buffer, size_t size, void *dst)
-{
-        void *src;
-        vmaMapMemory(driver->allocator, buffer->allocation, &src);
-        memcpy(dst, src, size);
-        vmaUnmapMemory(driver->allocator, buffer->allocation);
-}
-
-void memory_write(const VrakDriver *driver, VrakBuffer buffer, size_t size, void *src)
-{
-        void *dst;
-        vmaMapMemory(driver->allocator, buffer->allocation, &dst);
-        memcpy(src, dst, size);
-        vmaUnmapMemory(driver->allocator, buffer->allocation);
-}
-
-void memory_image_barrier(VkCommandBuffer command_buffer,
-                          VkImage image,
-                          VkAccessFlags src,
-                          VkAccessFlags dst,
-                          VkImageLayout old_layout,
-                          VkImageLayout new_layout)
-{
-        VkImageSubresourceRange subresource = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = 1
-        };
-
-        VkImageMemoryBarrier barrier = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                .srcAccessMask = src,
-                .dstAccessMask = dst,
-                .oldLayout = old_layout,
-                .newLayout = new_layout,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = image,
-                .subresourceRange = subresource,
-        };
-
-        vkCmdPipelineBarrier(
-                command_buffer,
-                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                0,
-                0,
-                VK_NULL_HANDLE,
-                0,
-                VK_NULL_HANDLE,
-                1,
-                &barrier);
-}
-
 VkResult pipeline_create(const VrakDriver *driver, VkFormat color, VrakPipeline *p_pipeline)
 {
         VkResult err;
@@ -503,7 +421,8 @@ VkResult pipeline_create(const VrakDriver *driver, VkFormat color, VrakPipeline 
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         };
 
-        if ((err = vkCreatePipelineLayout(driver->device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, &tmp->vk_pipeline_layout)))
+        if ((err = vkCreatePipelineLayout(driver->device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE,
+                                          &tmp->vk_pipeline_layout)))
                 return pipeline_cleanup(err);
 
         VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo[] = {
@@ -651,6 +570,158 @@ void pipeline_destroy(const VrakDriver *driver, VrakPipeline pipeline)
                 vkDestroyPipeline(driver->device, pipeline->vk_pipeline, VK_NULL_HANDLE);
 
         memdel(pipeline);
+}
+
+void memory_read(const VrakDriver *driver, VrakBuffer buffer, size_t size, void *dst)
+{
+        void *src;
+        vmaMapMemory(driver->allocator, buffer->allocation, &src);
+        memcpy(dst, src, size);
+        vmaUnmapMemory(driver->allocator, buffer->allocation);
+}
+
+void memory_write(const VrakDriver *driver, VrakBuffer buffer, size_t size, void *src)
+{
+        void *dst;
+        vmaMapMemory(driver->allocator, buffer->allocation, &dst);
+        memcpy(dst, src, size);
+        vmaUnmapMemory(driver->allocator, buffer->allocation);
+}
+
+void memory_image_barrier(VkCommandBuffer command_buffer,
+                          VkImage image,
+                          VkAccessFlags src,
+                          VkAccessFlags dst,
+                          VkImageLayout old_layout,
+                          VkImageLayout new_layout)
+{
+        VkImageSubresourceRange subresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1
+        };
+
+        VkImageMemoryBarrier barrier = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask = src,
+                .dstAccessMask = dst,
+                .oldLayout = old_layout,
+                .newLayout = new_layout,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = image,
+                .subresourceRange = subresource,
+        };
+
+        vkCmdPipelineBarrier(
+                command_buffer,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                0,
+                0,
+                VK_NULL_HANDLE,
+                0,
+                VK_NULL_HANDLE,
+                1,
+                &barrier);
+}
+
+void cmd_begin(VkCommandBuffer command_buffer)
+{
+        VkCommandBufferBeginInfo begin_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
+                         VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+        };
+
+        vkBeginCommandBuffer(command_buffer, &begin_info);
+}
+
+void cmd_end(VkCommandBuffer command_buffer)
+{
+        vkEndCommandBuffer(command_buffer);
+}
+
+void cmd_begin_rendering(VkCommandBuffer command_buffer, VrakTexture2D target)
+{
+        cmd_begin(command_buffer);
+
+        VkRenderingAttachmentInfo renderingAttachmentInfo = {
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = target->vk_view2d,
+                .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .clearValue = {
+                        .color = {0.0f, 0.0f, 0.0f, 1.0f},
+                },
+        };
+
+        VkRenderingInfo renderingInfo = {
+                .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+                .renderArea = {.offset = {0, 0},
+                        .extent = {target->width, target->height}},
+                .layerCount = 1,
+                .pColorAttachments = &renderingAttachmentInfo,
+                .pDepthAttachment = VK_NULL_HANDLE,
+        };
+
+        vkCmdBeginRendering(command_buffer, &renderingInfo);
+
+        VkViewport viewport = {
+                .width = static_cast<float>(target->width),
+                .height = static_cast<float>(target->height),
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f,
+        };
+
+        VkRect2D scissor = {
+                .offset = {0, 0},
+                .extent = {target->width, target->height}
+        };
+
+        vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+}
+
+void cmd_end_rendering(VkCommandBuffer command_buffer)
+{
+        vkCmdEndRendering(command_buffer);
+        cmd_end(command_buffer);
+}
+
+void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrakPipeline pipeline)
+{
+        vkCmdBindPipeline(command_buffer, pipeline->bindpoint, pipeline->vk_pipeline);
+}
+
+void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrakBuffer vertex_buffer)
+{
+        VkDeviceSize offsets = 0;
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, &offsets);
+}
+
+void cmd_draw(VkCommandBuffer command_buffer)
+{
+        vkCmdDraw(command_buffer, 3, 1, 0, 0);
+}
+
+VkResult queue_submit(const VrakDriver *driver, VkCommandBuffer command_buffer)
+{
+        VkSubmitInfo submitInfo = {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &command_buffer,
+        };
+
+        return vkQueueSubmit(driver->queue, 1, &submitInfo, VK_NULL_HANDLE);
+}
+
+VkResult queue_wait_idle(const VrakDriver *driver)
+{
+        return vkQueueWaitIdle(driver->queue);
 }
 
 #ifdef USE_GLFW
@@ -977,7 +1048,11 @@ int main()
         cmd_begin_rendering(command_buffer, texture);
         cmd_bind_pipeline(command_buffer, pipeline);
         cmd_bind_vertex_buffer(command_buffer, vertex_buffer);
+        cmd_draw(command_buffer);
         cmd_end_rendering(command_buffer);
+        queue_submit(driver, command_buffer);
+        queue_wait_idle(driver);
+
 #ifdef USE_GLFW
         glfwPollEvents();
 }

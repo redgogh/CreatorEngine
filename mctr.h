@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------------- *\
 |*                                                                                  *|
-|*    Copyright (C) 2019-2024 RedGogh All rights reserved.                          *|
+|*    Copyright (C) 2019-2024 Red Gogh All rights reserved.                         *|
 |*                                                                                  *|
 |*    Licensed under the Apache License, Version 2.0 (the "License");               *|
 |*    you may not use this file except in compliance with the License.              *|
@@ -15,10 +15,10 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#ifndef VERONICA_MCTR_H_
-#define VERONICA_MCTR_H_
+#ifndef VRONK_MCTR_H_
+#define VRONK_MCTR_H_
 
 #define USE_VOLK
 //#define USE_GLFW
 
-#endif /* VERONICA_MCTR_H_ */
+#endif /* VRONK_MCTR_H_ */

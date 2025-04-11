@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------------- *\
 |*                                                                                  *|
-|*    Copyright (C) 2019-2024 RedGogh All rights reserved.                          *|
+|*    Copyright (C) 2019-2024 Red Gogh All rights reserved.                         *|
 |*                                                                                  *|
 |*    Licensed under the Apache License, Version 2.0 (the "License");               *|
 |*    you may not use this file except in compliance with the License.              *|
@@ -18,8 +18,8 @@
 
 /* Create by Red Gogh on 2025/4/7 */
 
-#ifndef VERONICA_TYPE_DEF_H_
-#define VERONICA_TYPE_DEF_H_
+#ifndef VRONK_TYPE_DEF_H_
+#define VRONK_TYPE_DEF_H_
 
 #include <memory>
 #include <assert.h>
@@ -44,4 +44,4 @@ inline static void memdel(void *ptr)
         delete ptr;
 }
 
-#endif /* VERONICA_TYPE_DEF_H_ */
+#endif /* VRONK_TYPE_DEF_H_ */

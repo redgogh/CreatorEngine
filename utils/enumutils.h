@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------------- *\
 |*                                                                                  *|
-|*    Copyright (C) 2019-2024 RedGogh All rights reserved.                          *|
+|*    Copyright (C) 2019-2024 Red Gogh All rights reserved.                          *|
 |*                                                                                  *|
 |*    Licensed under the Apache License, Version 2.0 (the "License");               *|
 |*    you may not use this file except in compliance with the License.              *|
@@ -18,8 +18,8 @@
 
 /* Create by Red Gogh on 2025/4/8 */
 
-#ifndef VERONICA_ENUMUTILS_H_
-#define VERONICA_ENUMUTILS_H_
+#ifndef VRONK_ENUMUTILS_H_
+#define VRONK_ENUMUTILS_H_
 
 #include <magic_enum/magic_enum.hpp>
 
@@ -32,4 +32,4 @@ inline static constexpr auto __magic_enum_name(const E& value)
 
 #define MAGIC_ENUM_NAME(V) (std::string(__magic_enum_name(V)).c_str())
 
-#endif /* VERONICA_ENUMUTILS_H_ */
+#endif /* VRONK_ENUMUTILS_H_ */
