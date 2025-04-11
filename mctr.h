@@ -19,6 +19,6 @@
 #define VRONK_MCTR_H_
 
 #define USE_VOLK
-//#define USE_GLFW
+#define USE_GLFW
 
 #endif /* VRONK_MCTR_H_ */
