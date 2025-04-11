@@ -3,11 +3,10 @@
 #include <veronica/typedef.h>
 #include "utils/enumutils.h"
 
-#ifndef VOLK_LOADER
-#define VOLK_LOADER
-#endif
+#define USE_VOLK
+// #define USE_GLFW
 
-#ifdef VOLK_LOADER
+#ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
 #include <volk/volk.h>
 #else
@@ -17,7 +16,10 @@
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
+#ifdef USE_GLFW
 #include <glfw/glfw3.h>
+#endif
+
 #include <glm/glm.hpp>
 
 #include "utils/ioutils.h"
@@ -35,7 +37,9 @@ void error_fatal(const char *msg, VkResult err)
 struct VrakDriver {
         uint32_t version = 0;
         VkInstance instance = VK_NULL_HANDLE;
+#ifdef USE_GLFW
         VkSurfaceKHR surface = VK_NULL_HANDLE;
+#endif
         VkPhysicalDevice gpu = VK_NULL_HANDLE;
         uint32_t queue_index = 0;
         VkQueue queue = VK_NULL_HANDLE;
@@ -82,6 +86,7 @@ static Vertex vertices[] = {
 };
 
 void swapchain_destroy(const VrakDriver *driver, VrakSwapchainEXT swapchain);
+void pipeline_destroy(const VrakDriver *driver, VrakPipeline pipeline);
 
 VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice>& devices)
 {
@@ -97,6 +102,7 @@ VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice>& devic
         return devices[0];
 }
 
+#ifdef USE_GLFW
 VkResult pick_suitable_surface_format(const VrakDriver *driver, VkSurfaceFormatKHR *p_format)
 {
         VkResult err;
@@ -131,6 +137,7 @@ VkResult pick_suitable_surface_format(const VrakDriver *driver, VkSurfaceFormatK
 TAG_PICK_SUITABLE_SURFACE_FORMAT_END:
         return VK_SUCCESS;
 }
+#endif
 
 void find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
 {
@@ -142,9 +149,13 @@ void find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p
         
         for (uint32_t i = 0; i < count; i++) {
                 VkQueueFamilyProperties property = properties[i];
+#ifdef USE_GLFW
                 VkBool32 supported = VK_FALSE;
                 vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
                 if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supported) {
+#else
+                if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+#endif
                         *p_index = i;
                         return;
                 }
@@ -298,39 +309,90 @@ VkResult pipeline_create(const VrakDriver *driver, VrakPipeline *p_pipeline)
         VrakPipeline tmp = VK_NULL_HANDLE;
         VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
         VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
-        VkPipeline pipeline;
-        VkGraphicsPipelineCreateInfo pipeline_ci = {};
+        VkPipeline pipeline = VK_NULL_HANDLE;
 
         tmp = memnew<VrakPipeline_T>();
 
+        /* use cleanup to clear resource when some error. */
+        auto cleanup = [&] (VkResult err) {
+                if (vertex_shader_module != VK_NULL_HANDLE)
+                        vkDestroyShaderModule(driver->device, vertex_shader_module, VK_NULL_HANDLE);
+
+                if (fragment_shader_module != VK_NULL_HANDLE)
+                        vkDestroyShaderModule(driver->device, fragment_shader_module, VK_NULL_HANDLE);
+
+                if (err != VK_SUCCESS)
+                        pipeline_destroy(driver, tmp);
+                
+                return err;
+        };
+
         if ((err = load_shader_module(driver->device, "shaders/spir-v/simple_vertex.spv", &vertex_shader_module)))
-                goto TAG_PIPELINE_CREATE_OUT;
+                return cleanup(err);
 
         if ((err = load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module)))
-                goto TAG_PIPELINE_CREATE_OUT;
+                return cleanup(err);
+        
+        VkPipelineShaderStageCreateInfo stages[] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                .module = vertex_shader_module,
+                .pName = "main",
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .module = fragment_shader_module,
+                .pName = "main",
+            }
+        };
 
-        pipeline_ci = {
-             .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR,
+        VkVertexInputBindingDescription binds[] = {
+            {
+                .binding = 0,
+                .stride = sizeof(Vertex),
+                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+            }
+        };
+
+        VkVertexInputAttributeDescription attributes[] = {
+            {
+                .location = 0,
+                .binding = 0,
+                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                .offset = offsetof(Vertex, position)
+            },
+            {
+                .location = 1,
+                .binding = 0,
+                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                .offset = offsetof(Vertex, position)  
+            }
+        };
+
+        VkPipelineVertexInputStateCreateInfo vertex_input_state = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .vertexBindingDescriptionCount = std::size(binds),
+            .pVertexBindingDescriptions = std::data(binds),
+            .vertexAttributeDescriptionCount = std::size(attributes),
+            .pVertexAttributeDescriptions = std::data(attributes),
+        };
+
+        VkGraphicsPipelineCreateInfo pipeline_ci = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR,
+            .stageCount = std::size(stages),
+            .pStages = std::data(stages),
+            .pVertexInputState = &vertex_input_state,
         };
 
         if ((err = vkCreateGraphicsPipelines(driver->device, VK_NULL_HANDLE, 1, &pipeline_ci, VK_NULL_HANDLE, &pipeline)))
-                goto TAG_PIPELINE_CREATE_OUT;
+                return cleanup(err);
 
         tmp->vk_pipeline = pipeline;
         *p_pipeline = tmp;
 
-TAG_PIPELINE_CREATE_OUT:
-        if (err) {
-                memdel(tmp);
-        }
-
-        if (vertex_shader_module != VK_NULL_HANDLE)
-                vkDestroyShaderModule(driver->device, vertex_shader_module, VK_NULL_HANDLE);
-
-        if (fragment_shader_module != VK_NULL_HANDLE)
-                vkDestroyShaderModule(driver->device, fragment_shader_module, VK_NULL_HANDLE);
-
-        return err;
+        return cleanup(err);
 }
 
 void pipeline_destroy(const VrakDriver *driver, VrakPipeline pipeline)
@@ -345,13 +407,17 @@ void pipeline_destroy(const VrakDriver *driver, VrakPipeline pipeline)
         memdel(pipeline);
 }
 
+#ifdef USE_GLFW
 VrakDriver *vrak_driver_initialize(GLFWwindow *window)
+#else
+VrakDriver *vrak_driver_initialize()
+#endif
 {
         VkResult err;
 
         VrakDriver *driver = memnew<VrakDriver>();
         
-#ifdef VOLK_LOADER
+#ifdef USE_VOLK
         /*
          * initialize volk loader to dynamic load about instance function
          * api pointer.
@@ -378,13 +444,16 @@ VrakDriver *vrak_driver_initialize(GLFWwindow *window)
         };
 
         uint32_t count;
+
+#ifdef USE_GLFW
         const char **required = glfwGetRequiredInstanceExtensions(&count);
 
         std::vector<const char *> extensions;
 
         for (int i = 0; i < count; ++i)
                 extensions.push_back(required[i]);
-
+#endif
+        
         std::vector<const char *> layers = {
                 "VK_LAYER_KHRONOS_validation"
         };
@@ -394,14 +463,16 @@ VrakDriver *vrak_driver_initialize(GLFWwindow *window)
             .pApplicationInfo = &info,
             .enabledLayerCount = (uint32_t) std::size(layers),
             .ppEnabledLayerNames = std::data(layers),
+#ifdef USE_GLFW
             .enabledExtensionCount = (uint32_t) std::size(extensions),
             .ppEnabledExtensionNames = std::data(extensions),
+#endif
         };
 
         if ((err = vkCreateInstance(&instance_ci, VK_NULL_HANDLE, &driver->instance)))
                 error_fatal("Failed to create instance", err);
 
-#ifdef VOLK_LOADER
+#ifdef USE_VOLK
         volkLoadInstance(driver->instance);
 #endif
 
@@ -416,16 +487,22 @@ VrakDriver *vrak_driver_initialize(GLFWwindow *window)
         
         driver->gpu = pick_discrete_device(devices);
 
+#ifdef USE_GLFW
         if ((err = glfwCreateWindowSurface(driver->instance, window, VK_NULL_HANDLE, &driver->surface)))
                 error_fatal("Failed to create surface", err);
+#endif
 
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(driver->gpu, &properties);
         printf("Use GPU %s\n", properties.deviceName);
         
         float priorities = 1.0f;
-        
+
+#ifdef USE_GLFW
         find_queue_index(driver->gpu, driver->surface, &driver->queue_index);
+#else
+        find_queue_index(driver->gpu, VK_NULL_HANDLE, &driver->queue_index);
+#endif
         
         VkDeviceQueueCreateInfo queue_ci = {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -449,7 +526,7 @@ VrakDriver *vrak_driver_initialize(GLFWwindow *window)
         if ((err = vkCreateDevice(driver->gpu, &device_ci, VK_NULL_HANDLE, &driver->device)))
                 error_fatal("Failed to create logic device", err);
         
-#ifdef VOLK_LOADER
+#ifdef USE_VOLK
         volkLoadDevice(driver->device);
 #endif
         
@@ -487,7 +564,9 @@ void vrak_driver_destroy(VrakDriver* driver)
         vmaDestroyAllocator(driver->allocator);
         vkDestroyCommandPool(driver->device, driver->command_pool, VK_NULL_HANDLE);
         vkDestroyDevice(driver->device, VK_NULL_HANDLE);
+#ifdef USE_GLFW
         vkDestroySurfaceKHR(driver->instance, driver->surface, VK_NULL_HANDLE);
+#endif
         vkDestroyInstance(driver->instance, VK_NULL_HANDLE);
         memdel(driver);
 }
@@ -522,35 +601,38 @@ void image_view2d_destroy(const VrakDriver *driver, VkImageView view)
         vkDestroyImageView(driver->device, view, VK_NULL_HANDLE);
 }
 
+#ifdef USE_GLFW
 VkResult swapchain_create(VrakDriver *driver, VrakSwapchainEXT *p_swapchain)
 {
         VkResult err;
         VrakSwapchainEXT tmp = VK_NULL_HANDLE;
-        uint32_t min = 0;
-        uint32_t max = 0;
-        VkSurfaceFormatKHR surface_format = {};
-        VkSwapchainCreateInfoKHR swapchain_ci = {};
-        uint32_t count = 0;
         std::vector<VkImage> images;
 
         tmp = memnew<VrakSwapchainEXT_T>();
+        
+        /* use cleanup to clear resource when some error. */
+        auto cleanup = [&](VkResult err) {
+                swapchain_destroy(driver, tmp);
+                return err;
+        };
 
         if ((err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &tmp->capabilities)))
-                goto TAG_SWAPCHAIN_CREATE_OUT;
+                return cleanup(err);
 
-        min = tmp->capabilities.minImageCount;
-        max = tmp->capabilities.maxImageCount;
+        uint32_t min = tmp->capabilities.minImageCount;
+        uint32_t max = tmp->capabilities.maxImageCount;
         tmp->min_image_count = std::clamp(min + 1, min, max);
 
         *p_swapchain = tmp;
 
+        VkSurfaceFormatKHR surface_format;
         if ((err = pick_suitable_surface_format(driver, &surface_format)))
-                goto TAG_SWAPCHAIN_CREATE_OUT;
+                return cleanup(err);
 
         tmp->format = surface_format.format;
         tmp->color_space = surface_format.colorSpace;
 
-        swapchain_ci = {
+        VkSwapchainCreateInfoKHR swapchain_ci = {
             .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
             .surface = driver->surface,
             .minImageCount = tmp->min_image_count,
@@ -568,29 +650,26 @@ VkResult swapchain_create(VrakDriver *driver, VrakSwapchainEXT *p_swapchain)
         };
 
         if ((err = vkCreateSwapchainKHR(driver->device, &swapchain_ci, VK_NULL_HANDLE, &tmp->vk_swapchain)))
-                goto TAG_SWAPCHAIN_CREATE_OUT;
+                return cleanup(err);
 
+        uint32_t count;
         if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, VK_NULL_HANDLE)))
-                goto TAG_SWAPCHAIN_CREATE_OUT;
+                return cleanup(err);
 
         images.resize(count);
         if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, std::data(images))))
-                goto TAG_SWAPCHAIN_CREATE_OUT;
+                return cleanup(err);
 
         tmp->resources.resize(tmp->min_image_count);
         for (int i = 0; i < tmp->min_image_count; ++i) {
                 tmp->resources[i].image = images[i];
                 if ((err = image_view2d_create(driver, tmp->resources[i].image, tmp->format, &(tmp->resources[i].image_view))))
-                        goto TAG_SWAPCHAIN_CREATE_OUT;
-        }
-
-TAG_SWAPCHAIN_CREATE_OUT:
-        if (err) {
-                swapchain_destroy(driver, tmp);
+                        return cleanup(err);
         }
 
         return err;
 }
+#endif
 
 void swapchain_destroy(const VrakDriver *driver, VrakSwapchainEXT swapchain)
 {
@@ -617,44 +696,58 @@ int main()
         setvbuf(stdout, NULL, _IONBF, 0);
         setvbuf(stderr, NULL, _IONBF, 0);
 
+#ifdef USE_GLFW
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
         GLFWwindow* window = VK_NULL_HANDLE;
+#endif
+        
         VrakDriver* driver = VK_NULL_HANDLE;
         VrakSwapchainEXT swapchain = VK_NULL_HANDLE;
         VrakBuffer vertex_buffer = VK_NULL_HANDLE;
         VkCommandBuffer command_buffer = VK_NULL_HANDLE;
         VrakPipeline pipeline = VK_NULL_HANDLE;
 
+#ifdef USE_GLFW
         window = glfwCreateWindow(800, 600, "Veronak Cube", nullptr, nullptr);
         driver = vrak_driver_initialize(window);
         swapchain_create(driver, &swapchain);
+#else
+        driver = vrak_driver_initialize();
+#endif
 
         // create vertex buffer
-        err = buffer_create(driver, sizeof(vertices), &vertex_buffer);
-        if (err)
+        if ((err = buffer_create(driver, sizeof(vertices), &vertex_buffer)))
                 error_fatal("Failed to create vertex buffer", err);
 
         memory_write(driver, vertex_buffer, sizeof(vertices), (void*) vertices);
 
         command_buffer_alloc(driver, &command_buffer);
-        pipeline_create(driver, &pipeline);
+        
+        if ((err = pipeline_create(driver, &pipeline)))
+                error_fatal("Failed to create graphics pipeline", err);
 
+#ifdef USE_GLFW
         while (!glfwWindowShouldClose(window)) {
+#endif
                 cmd_begin(command_buffer);
                 cmd_end(command_buffer);
+#ifdef USE_GLFW
                 glfwPollEvents();
         }
+#endif
 
         pipeline_destroy(driver, pipeline);
         command_buffer_free(driver, command_buffer);
         buffer_destroy(driver, vertex_buffer);
         swapchain_destroy(driver, swapchain);
         vrak_driver_destroy(driver);
-        glfwDestroyWindow(window);
 
+#ifdef USE_GLFW
+        glfwDestroyWindow(window);
         glfwTerminate();
+#endif
         
         return 0;
 }
