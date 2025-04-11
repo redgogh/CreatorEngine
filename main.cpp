@@ -1024,7 +1024,7 @@ void vrak_driver_destroy(VrnkDriver *driver)
 }
 
 #ifdef USE_GLFW
-VkResult swapchain_create(VrnkDriver *driver, VrnkSwapchainEXT *p_swapchain)
+VkResult swapchain_create(const VrnkDriver *driver, VrnkSwapchainEXT *p_swapchain, VrnkSwapchainEXT exist = VK_NULL_HANDLE)
 {
         VkResult err;
         VrnkSwapchainEXT tmp = VK_NULL_HANDLE;
@@ -1071,7 +1071,7 @@ VkResult swapchain_create(VrnkDriver *driver, VrnkSwapchainEXT *p_swapchain)
             .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
             .presentMode = VK_PRESENT_MODE_FIFO_KHR,
             .clipped = VK_TRUE,
-            .oldSwapchain = VK_NULL_HANDLE,
+            .oldSwapchain = exist ? exist->vk_swapchain : VK_NULL_HANDLE,
         };
 
         if ((err = vkCreateSwapchainKHR(driver->device, &swapchainCreateInfoKHR, VK_NULL_HANDLE, &tmp->vk_swapchain)))
@@ -1110,6 +1110,21 @@ VkResult swapchain_create(VrnkDriver *driver, VrnkSwapchainEXT *p_swapchain)
         }
 
         return err;
+}
+
+void swapchain_resize_check(const VrnkDriver *driver, VrnkSwapchainEXT *p_swapchain)
+{
+        VkSurfaceCapabilitiesKHR capabilities;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &capabilities);
+
+        VkExtent2D extent = capabilities.currentExtent;
+        if ((extent.width != 0 || extent.height != 0) && ((*p_swapchain)->width != extent.width || (*p_swapchain)->height != extent.height)) {
+                vkDeviceWaitIdle(driver->device);
+                VrnkSwapchainEXT tmp = VK_NULL_HANDLE;
+                swapchain_create(driver, &tmp, (*p_swapchain));
+                swapchain_destroy(driver, (*p_swapchain));
+                *p_swapchain = tmp;
+        }
 }
 
 void swapchain_destroy(const VrnkDriver *driver, VrnkSwapchainEXT swapchain)
@@ -1207,6 +1222,8 @@ int main()
 
 #ifdef USE_GLFW
         while (!glfwWindowShouldClose(window)) {
+                swapchain_resize_check(driver, &swapchain);
+
                 swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
                 acquire_next_index(driver, swapchain, &swapchain->acquire_index);
 
