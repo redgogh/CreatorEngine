@@ -24,7 +24,7 @@
 #include <magic_enum/magic_enum.hpp>
 
 template<typename E>
-inline static auto __magic_enum_name(const E& value)
+inline static constexpr auto __magic_enum_name(const E& value)
 {
         return magic_enum::enum_name(value);
 }
