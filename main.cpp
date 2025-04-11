@@ -793,7 +793,6 @@ VkResult texture2d_create(const VrakDriver *driver, uint32_t w, uint32_t h, Vrak
         };
 
         VmaAllocationCreateInfo allocationCreateInfo = {
-            .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
             .usage = VMA_MEMORY_USAGE_AUTO,
         };
         
