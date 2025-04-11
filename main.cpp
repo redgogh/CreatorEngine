@@ -70,10 +70,13 @@ typedef struct VrakBuffer_T {
 typedef struct VrakPipeline_T {
         VkPipeline vk_pipeline = VK_NULL_HANDLE;
         VkPipelineLayout vk_pipeline_layout = VK_NULL_HANDLE;
+        VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 } *VrakPipeline;
 
 typedef struct VrakTexture2D_T {
         VkImage vk_image = VK_NULL_HANDLE;
+        VmaAllocation allocation = VK_NULL_HANDLE;
+        VmaAllocationInfo allocation_info = {};
         VkImageView vk_view2d = VK_NULL_HANDLE;
         VkFormat format = VK_FORMAT_UNDEFINED;
         uint32_t width = 0;
@@ -226,6 +229,65 @@ void cmd_end(VkCommandBuffer command_buffer)
         vkEndCommandBuffer(command_buffer);
 }
 
+void cmd_begin_rendering(VkCommandBuffer command_buffer, VrakTexture2D target)
+{
+        cmd_begin(command_buffer);
+        
+        VkRenderingAttachmentInfo renderingAttachmentInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = target->vk_view2d,
+            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = {
+                .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+             },
+        };
+
+        VkRenderingInfo renderingInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea = {.offset = {0, 0},
+                           .extent = { target->width, target->height }},
+            .layerCount = 1,
+            .pColorAttachments = &renderingAttachmentInfo,
+            .pDepthAttachment = VK_NULL_HANDLE,
+        };
+        
+        vkCmdBeginRendering(command_buffer, &renderingInfo);
+        
+        VkViewport viewport = {
+            .width = static_cast<float>(target->width),
+            .height = static_cast<float>(target->height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+        
+        VkRect2D scissor = {
+            .offset = { 0, 0 },
+            .extent = { target->width, target->height } 
+        };
+        
+        vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+}
+
+void cmd_end_rendering(VkCommandBuffer command_buffer)
+{
+        vkCmdEndRendering(command_buffer);
+        cmd_end(command_buffer);
+}
+        
+void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrakPipeline pipeline)
+{
+        vkCmdBindPipeline(command_buffer, pipeline->bindpoint, pipeline->vk_pipeline);
+}
+
+void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrakBuffer vertex_buffer)
+{
+        VkDeviceSize offsets = 0;
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, &offsets);
+}
+        
 VkResult buffer_create(const VrakDriver* driver, VkDeviceSize size, VrakBuffer *p_buffer)
 {
         VkBufferCreateInfo buffer_ci = {
@@ -689,7 +751,7 @@ VkResult image_view2d_create(const VrakDriver *driver, VkImage image, VkFormat f
                 .layerCount = 1
             }
         };
-
+        
         return vkCreateImageView(driver->device, &image_view2d_ci, VK_NULL_HANDLE, p_view2d);
 }
 
@@ -705,6 +767,10 @@ VkResult texture2d_create(const VrakDriver *driver, uint32_t w, uint32_t h, Vrak
 
         tmp = memnew<VrakTexture2D_T>();
 
+        tmp->width = w;
+        tmp->height = h;
+        tmp->format = VK_FORMAT_R8G8B8A8_SRGB;
+        
         auto texture2d_cleanup = [&] (VkResult err) {
                 if (err) {
                         texture2d_destroy(driver, tmp);
@@ -715,8 +781,8 @@ VkResult texture2d_create(const VrakDriver *driver, uint32_t w, uint32_t h, Vrak
         VkImageCreateInfo imageCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .imageType = VK_IMAGE_TYPE_2D,
-            .format = VK_FORMAT_R8G8B8A8_SRGB,
-            .extent = {w, h},
+            .format = tmp->format,
+            .extent = { w, h, 1 },
             .mipLevels = 1,
             .arrayLayers = 1,
             .samples = VK_SAMPLE_COUNT_4_BIT,
@@ -726,7 +792,12 @@ VkResult texture2d_create(const VrakDriver *driver, uint32_t w, uint32_t h, Vrak
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         };
 
-        if ((err = vkCreateImage(driver->device, &imageCreateInfo, VK_NULL_HANDLE, &tmp->vk_image)))
+        VmaAllocationCreateInfo allocationCreateInfo = {
+            .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO,
+        };
+        
+        if ((err = vmaCreateImage(driver->allocator, &imageCreateInfo, &allocationCreateInfo, &tmp->vk_image, &tmp->allocation, &tmp->allocation_info)))
                 return texture2d_cleanup(err);
 
         if ((err = image_view2d_create(driver, tmp->vk_image, tmp->format, &tmp->vk_view2d)))
@@ -746,8 +817,8 @@ void texture2d_destroy(const VrakDriver *driver, VrakTexture2D texture)
                 vkDestroyImageView(driver->device, texture->vk_view2d, VK_NULL_HANDLE);
 
         if (texture->vk_image != VK_NULL_HANDLE)
-                vkDestroyImage(driver->device, texture->vk_image, VK_NULL_HANDLE);
-
+                vmaDestroyImage(driver->allocator, texture->vk_image, texture->allocation);
+        
         memdel(texture);
 }
 
@@ -854,7 +925,11 @@ int main()
 #endif /* USE_GLFW */
         
         VrakDriver* driver = VK_NULL_HANDLE;
+        
+#ifdef USE_GLFW
         VrakSwapchainEXT swapchain = VK_NULL_HANDLE;
+#endif /* USE_GLFW */
+        
         VrakBuffer vertex_buffer = VK_NULL_HANDLE;
         VkCommandBuffer command_buffer = VK_NULL_HANDLE;
         VrakPipeline pipeline = VK_NULL_HANDLE;
@@ -891,8 +966,10 @@ int main()
         while (!glfwWindowShouldClose(window)) {
 #endif /* USE_GLFW */
                 
-                cmd_begin(command_buffer);
-                cmd_end(command_buffer);
+                cmd_begin_rendering(command_buffer, texture);
+                cmd_bind_pipeline(command_buffer, pipeline);
+                cmd_bind_vertex_buffer(command_buffer, vertex_buffer);
+                cmd_end_rendering(command_buffer);
 #ifdef USE_GLFW
                 glfwPollEvents();
         }
