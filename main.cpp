@@ -664,6 +664,7 @@ void cmd_begin_rendering(VkCommandBuffer command_buffer, VrakTexture2D target)
                 .renderArea = {.offset = {0, 0},
                         .extent = {target->width, target->height}},
                 .layerCount = 1,
+                .colorAttachmentCount = 1,
                 .pColorAttachments = &renderingAttachmentInfo,
                 .pDepthAttachment = VK_NULL_HANDLE,
         };
