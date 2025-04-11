@@ -120,9 +120,9 @@ struct Vertex {
 };
 
 static Vertex vertices[] = {
-        {{0.0f,  0.5f,  0.0f}, {1.0f, 0.0f, 0.0f}},
-        {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f,  -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+        {{ 0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        {{ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{-0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
 };
 
 void swapchain_destroy(const VrnkDriver *driver, VrnkSwapchainEXT swapchain);
@@ -149,7 +149,7 @@ VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice> &devic
 VkResult pick_suitable_surface_format(const VrnkDriver *driver, VkSurfaceFormatKHR *p_format)
 {
         VkResult err;
-        
+
         uint32_t count;
         err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, VK_NULL_HANDLE);
         if (err)
@@ -463,14 +463,14 @@ VkResult pipeline_create(const VrnkDriver *driver, VkFormat color, VrnkPipeline 
                 {
                         .location = 0,
                         .binding = 0,
-                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                        .format = VK_FORMAT_R32G32B32_SFLOAT,
                         .offset = offsetof(Vertex, position)
                 },
                 {
                         .location = 1,
                         .binding = 0,
-                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                        .offset = offsetof(Vertex, position)
+                        .format = VK_FORMAT_R32G32B32_SFLOAT,
+                        .offset = offsetof(Vertex, color)
                 }
         };
 
@@ -524,7 +524,7 @@ VkResult pipeline_create(const VrnkDriver *driver, VkFormat color, VrnkPipeline 
         VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
                 .attachmentCount = 1,
-                .pAttachments = &pipelineColorBlendAttachmentState
+                .pAttachments = &pipelineColorBlendAttachmentState,
         };
 
         VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {
@@ -738,13 +738,13 @@ void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrnkPipeline pipeline)
 
 void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrnkBuffer vertex_buffer)
 {
-        VkDeviceSize offsets = 0;
-        vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, &offsets);
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, offsets);
 }
 
-void cmd_draw(VkCommandBuffer command_buffer)
+void cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count)
 {
-        vkCmdDraw(command_buffer, 3, 1, 0, 0);
+        vkCmdDraw(command_buffer, vertex_count, 1, 0, 0);
 }
 
 uint32_t cmd_copy_image(VkCommandBuffer command_buffer, VrnkTexture2D src, VrnkBuffer dst)
@@ -1236,7 +1236,7 @@ int main()
 
                 cmd_bind_pipeline(ring_command_buffer, pipeline);
                 cmd_bind_vertex_buffer(ring_command_buffer, vertex_buffer);
-                cmd_draw(ring_command_buffer);
+                cmd_draw(ring_command_buffer, sizeof(vertices));
                 cmd_end_rendering(ring_command_buffer);
 
 #ifdef USE_GLFW

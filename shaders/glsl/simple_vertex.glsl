@@ -9,6 +9,6 @@ void main()
 {
     gl_Position = vec4(vertex, 1.0f);
 
-    out_color = color * vertex;
+    out_color = color;
     
 }
