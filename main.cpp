@@ -15,11 +15,12 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "mctr.h"
-
 #include <stdio.h>
 
 #include <vronk/typedef.h>
+
+#define USE_VOLK
+#define USE_GLFW
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
@@ -39,6 +40,8 @@
 #endif /* USE_GLFW */
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
@@ -114,15 +117,19 @@ typedef struct VrnkTexture2D_T {
         uint32_t height = 0;
 } *VrnkTexture2D;
 
+struct PushConst {
+        glm::mat4 mvp;
+};
+
 struct Vertex {
         glm::vec3 position;
         glm::vec3 color;
 };
 
 static Vertex vertices[] = {
-        {{ 0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        {{ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+        {{  0.0f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        {{ -0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{  0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
 };
 
 void swapchain_destroy(const VrnkDriver *driver, VrnkSwapchainEXT swapchain);
@@ -428,8 +435,18 @@ VkResult pipeline_create(const VrnkDriver *driver, VkFormat color, VrnkPipeline 
         if ((err = load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module)))
                 return pipeline_cleanup(err);
 
+        VkPushConstantRange pushConstantRanges[] = {
+                {
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                        .offset = 0,
+                        .size = sizeof(PushConst),
+                }
+        };
+
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+                .pushConstantRangeCount = std::size(pushConstantRanges),
+                .pPushConstantRanges = std::data(pushConstantRanges),
         };
 
         if ((err = vkCreatePipelineLayout(driver->device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE,
@@ -734,6 +751,11 @@ void cmd_end_rendering(VkCommandBuffer command_buffer)
 void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrnkPipeline pipeline)
 {
         vkCmdBindPipeline(command_buffer, pipeline->bindpoint, pipeline->vk_pipeline);
+}
+
+void cmd_push_constants(VkCommandBuffer command_buffer, VrnkPipeline pipeline, VkShaderStageFlags stage, uint32_t offset, size_t size, const void *ptr)
+{
+        vkCmdPushConstants(command_buffer, pipeline->vk_pipeline_layout, stage, offset, size, ptr);
 }
 
 void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrnkBuffer vertex_buffer)
@@ -1162,12 +1184,18 @@ int main()
 {
         VkResult err;
 
+        system("chcp 65001 >nul");
+
         /*
          * close stdout and stderr write to buf, let direct
          * output.
          */
         setvbuf(stdout, NULL, _IONBF, 0);
         setvbuf(stderr, NULL, _IONBF, 0);
+
+        /* copy spir-v shader binary files */
+        system("cd ../shaders && shaderc");
+
 
 #ifdef USE_GLFW
         glfwInit();
@@ -1183,7 +1211,7 @@ int main()
 #endif /* USE_GLFW */
 
         VrnkBuffer vertex_buffer = VK_NULL_HANDLE;
-        VkCommandBuffer ring_command_buffer = VK_NULL_HANDLE;
+        VkCommandBuffer command_buffer_ring = VK_NULL_HANDLE;
         VrnkPipeline pipeline = VK_NULL_HANDLE;
 
 #ifndef USE_GLFW
@@ -1191,13 +1219,13 @@ int main()
 #endif /* USE_GLFW */
 
 #ifdef USE_GLFW
-        window = glfwCreateWindow(800, 600, "Veronak Cube", nullptr, nullptr);
+        window = glfwCreateWindow(800, 600, "Vronk Cube", nullptr, nullptr);
         driver = vrak_driver_initialize(window);
         swapchain_create(driver, &swapchain);
 #else
         driver = vrak_driver_initialize();
 
-        command_buffer_alloc(driver, &ring_command_buffer);
+        command_buffer_alloc(driver, &command_buffer_ring);
 #endif /* USE_GLFW */
 
         // create vertex buffer
@@ -1220,6 +1248,15 @@ int main()
                 error_fatal("Failed to create texture 2d", err);
 #endif /* USE_GLFW */
 
+
+        glm::mat4 model(1.0f);
+        glm::mat4 view(1.0f);
+        glm::mat4 proj(1.0f);
+
+        model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0));
+
+        view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));
+
 #ifdef USE_GLFW
         while (!glfwWindowShouldClose(window)) {
                 swapchain_resize_check(driver, &swapchain);
@@ -1227,26 +1264,34 @@ int main()
                 swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
                 acquire_next_index(driver, swapchain, &swapchain->acquire_index);
 
-                ring_command_buffer = swapchain->command_buffers[swapchain->frame];
+                command_buffer_ring = swapchain->command_buffers[swapchain->frame];
                 VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
-                cmd_begin_rendering(ring_command_buffer, swapchain->width, swapchain->height, view2d);
+                cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
 #else
-                cmd_begin_rendering(ring_command_buffer, texture->width, texture->height, texture->vk_view2d);
+                cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
 #endif /* USE_GLFW */
 
-                cmd_bind_pipeline(ring_command_buffer, pipeline);
-                cmd_bind_vertex_buffer(ring_command_buffer, vertex_buffer);
-                cmd_draw(ring_command_buffer, sizeof(vertices));
-                cmd_end_rendering(ring_command_buffer);
+                float aspect = (float) swapchain->width / (float) swapchain->height;
+                proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+                proj[1][1] *= -1;
+
+                PushConst push_const;
+                push_const.mvp = proj * view * model;
+
+                cmd_bind_pipeline(command_buffer_ring, pipeline);
+                cmd_push_constants(command_buffer_ring, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConst), &push_const);
+                cmd_bind_vertex_buffer(command_buffer_ring, vertex_buffer);
+                cmd_draw(command_buffer_ring, sizeof(vertices));
+                cmd_end_rendering(command_buffer_ring);
 
 #ifdef USE_GLFW
-                present_submit(driver, ring_command_buffer, swapchain);
+                present_submit(driver, command_buffer_ring, swapchain);
 
                 vkWaitForFences(driver->device, 1, &(swapchain->fence[swapchain->frame]), VK_TRUE, UINT64_MAX);
                 vkResetFences(driver->device, 1, &(swapchain->fence[swapchain->frame]));
-                vkResetCommandBuffer(ring_command_buffer, 0);
+                vkResetCommandBuffer(command_buffer_ring, 0);
 #else
-                queue_submit(driver, ring_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
+                queue_submit(driver, command_buffer_ring, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
 #endif /* USE_GLFW */
 
 #ifndef USE_GLFW
@@ -1284,7 +1329,7 @@ int main()
 
 #ifndef USE_GLFW
         texture2d_destroy(driver, texture);
-        command_buffer_free(driver, ring_command_buffer);
+        command_buffer_free(driver, command_buffer_ring);
 #endif /* USE_GLFW */
 
         pipeline_destroy(driver, pipeline);

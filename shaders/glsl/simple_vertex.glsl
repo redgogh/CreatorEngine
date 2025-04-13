@@ -5,9 +5,13 @@ layout(location = 1) in vec3 color;
 
 layout(location = 0) out vec3 out_color;
 
+layout(push_constant) uniform push_const {
+    mat4 mvp;
+} upc;
+
 void main()
 {
-    gl_Position = vec4(vertex, 1.0f);
+    gl_Position = upc.mvp * vec4(vertex, 1.0f);
 
     out_color = color;
     
