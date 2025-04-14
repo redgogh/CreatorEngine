@@ -242,7 +242,7 @@ VkResult vrc_load_shader_module(VkDevice device, const char *path, VkShaderModul
 
 VkResult vrc_fence_create(const VrcDriver *driver, VkFence *p_fence)
 {
-        VkResult err;
+        VkResult U_ASSERT_ONLY err;
 
         VkFenceCreateInfo fenceCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -291,6 +291,11 @@ void vrc_command_buffer_free(const VrcDriver *driver, VkCommandBuffer command_bu
 
 VkResult vrc_buffer_create(const VrcDriver *driver, VkDeviceSize size, VrcBuffer *p_buffer, VkBufferUsageFlags usage)
 {
+        VrcBuffer tmp = memnew<VrcBuffer_T>();
+
+        if (!tmp)
+                return VK_ERROR_INITIALIZATION_FAILED;
+                
         VkBufferCreateInfo buffer_ci = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                 .size = size,
@@ -303,7 +308,6 @@ VkResult vrc_buffer_create(const VrcDriver *driver, VkDeviceSize size, VrcBuffer
                 .usage = VMA_MEMORY_USAGE_AUTO,
         };
 
-        VrcBuffer tmp = memnew<VrcBuffer_T>();
         tmp->size = size;
         *p_buffer = tmp;
 
@@ -354,6 +358,9 @@ VkResult vrc_texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, V
 
         tmp = memnew<VrcTexture2D_T>();
 
+        if (!tmp)
+                return VK_ERROR_INITIALIZATION_FAILED;
+        
         tmp->width = w;
         tmp->height = h;
         tmp->format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -417,6 +424,9 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
         VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
 
         tmp = memnew<VrcPipeline_T>();
+        
+        if (!tmp)
+                return VK_ERROR_INITIALIZATION_FAILED;
 
         /* use cleanup to clear resource when some error. */
         auto vrc_pipeline_cleanup = [&](VkResult err) {
@@ -867,11 +877,16 @@ VkResult vrc_present_submit(const VrcDriver *driver, VkCommandBuffer command_buf
         return vkQueuePresentKHR(driver->queue, &presentInfo);
 }
 
+VkResult vrc_device_wait_idle(const VrcDriver *driver)
+{
+        return vkDeviceWaitIdle(driver->device);
+}
+        
 VkResult vrc_queue_wait_idle(const VrcDriver *driver)
 {
         return vkQueueWaitIdle(driver->queue);
 }
-
+        
 #ifdef USE_GLFW
 VrcDriver *vrc_driver_initialize(GLFWwindow *window)
 #else
@@ -883,6 +898,9 @@ VrcDriver *vrc_driver_initialize()
         uint32_t count;
 
         VrcDriver *driver = memnew<VrcDriver>();
+        
+        if (!driver)
+                vrc_error_fatal("Failed to initialize driver struct, cause: memory allocate failed", VK_ERROR_INITIALIZATION_FAILED);
 
 #ifdef USE_VOLK
         /*
@@ -1054,6 +1072,9 @@ VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapch
         std::vector<VkImage> images;
 
         tmp = memnew<VrcSwapchainEXT_T>();
+        
+        if (!tmp) 
+                return VK_ERROR_INITIALIZATION_FAILED;
         
         /* use cleanup to clear resource when some error. */
         auto vrc_swapchain_cleanup = [&](VkResult err) {
