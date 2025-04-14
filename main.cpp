@@ -443,6 +443,34 @@ void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture)
         memdel(texture);
 }
 
+VkResult vrc_descriptor_set_layout_create(const VrcDriver *driver, uint32_t bind_count, VkDescriptorSetLayoutBinding *p_binds, VkDescriptorSetLayout *p_layout)
+{
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = bind_count,
+            .pBindings = p_binds,
+        };
+        
+        return vkCreateDescriptorSetLayout(driver->device, &descriptorSetLayoutCreateInfo, VK_NULL_HANDLE, p_layout);
+}
+        
+VkResult vrc_descriptor_set_alloc(const VrcDriver *driver, VkDescriptorSetLayout layout, VkDescriptorSet *p_descriptor_set)
+{
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = driver->descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &layout,
+        };
+        
+        return vkAllocateDescriptorSets(driver->device, &descriptorSetAllocateInfo, p_descriptor_set);
+}
+
+VkResult vrc_descriptor_set_free(const VrcDriver *driver, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set)
+{
+        return vkFreeDescriptorSets(driver->device, descriptor_pool, 1, &descriptor_set);
+}
+        
 VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p_pipeline)
 {
         VkResult err;
