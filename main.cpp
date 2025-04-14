@@ -20,7 +20,7 @@
 #include <vronk/typedef.h>
 
 #define USE_VOLK
-#define USE_GLFW
+// #define USE_GLFW
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
@@ -1267,11 +1267,12 @@ int main()
                 command_buffer_ring = swapchain->command_buffers[swapchain->frame];
                 VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
                 cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
+                float aspect = (float) swapchain->width / (float) swapchain->height;
 #else
+                float aspect = 800 / 600;
                 cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
 #endif /* USE_GLFW */
-
-                float aspect = (float) swapchain->width / (float) swapchain->height;
+                
                 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
                 proj[1][1] *= -1;
 
