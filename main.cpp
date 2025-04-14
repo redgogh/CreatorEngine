@@ -20,7 +20,7 @@
 #include <vronk/typedef.h>
 
 #define USE_VOLK
-#define USE_GLFW
+// #define USE_GLFW
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
@@ -73,6 +73,7 @@ struct VrcDriver {
         VkDevice device = VK_NULL_HANDLE;
         VkCommandPool command_pool = VK_NULL_HANDLE;
         VmaAllocator allocator = VK_NULL_HANDLE;
+        VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
 };
 
 struct VrcSwapchainResourceEXT {
@@ -140,6 +141,32 @@ void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
 void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
 
 void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture);
+
+void vrc_printf_device_limits(const VkPhysicalDevice& device)
+{
+        VkPhysicalDeviceMemoryProperties memoryProperties;
+        vkGetPhysicalDeviceMemoryProperties(device, &memoryProperties);
+        
+        VkDeviceSize max_vram_gb = 0;
+        
+        for (uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i) {
+                if (memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+                        max_vram_gb = std::max(max_vram_gb, memoryProperties.memoryHeaps[i].size);
+                }
+        }
+
+        max_vram_gb = max_vram_gb / (1024 * 1024 * 1024);
+        
+        printf("  |- maxVRAM(GB): %lluGB\n", max_vram_gb);
+        
+        VkPhysicalDeviceProperties physicalDeviceProperties;
+        vkGetPhysicalDeviceProperties(device, &physicalDeviceProperties);
+        
+        printf("  |- maxPerStageDescriptorSamplers: %u\n", physicalDeviceProperties.limits.maxPerStageDescriptorSamplers);
+        printf("  |- maxDescriptorSetSamplers: %u\n", physicalDeviceProperties.limits.maxDescriptorSetSamplers);
+        printf("  |- maxDescriptorSetUniformBuffers: %u\n", physicalDeviceProperties.limits.maxDescriptorSetUniformBuffers);
+        printf("  |- maxDescriptorSetUniformBuffers: %u\n", physicalDeviceProperties.limits.maxDescriptorSetUniformBuffers);
+}
 
 VkPhysicalDevice vrc_pick_discrete_device(const std::vector<VkPhysicalDevice> &devices)
 {
@@ -978,6 +1005,8 @@ VrcDriver *vrc_driver_initialize()
         vkGetPhysicalDeviceProperties(driver->gpu, &properties);
         printf("Use GPU %s\n", properties.deviceName);
 
+        vrc_printf_device_limits(driver->gpu);
+        
         float priorities = 1.0f;
 
 #ifdef USE_GLFW
@@ -1045,7 +1074,20 @@ VrcDriver *vrc_driver_initialize()
 
         if ((err = vmaCreateAllocator(&allocator_ci, &driver->allocator)))
                 vrc_error_fatal("Failed to create VMA allocator", err);
-
+        
+//        VkDescriptorPoolSize descriptorPoolSizes[] = {
+//            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256 },
+//        };
+//        
+//        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
+//            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+//            .poolSizeCount = std::size(descriptorPoolSizes),
+//            .pPoolSizes = std::data(descriptorPoolSizes),
+//        };
+//        
+//        if ((err = vkCreateDescriptorPool(driver->device, &descriptorPoolCreateInfo, VK_NULL_HANDLE, &driver->descriptor_pool)))
+//                vrc_error_fatal("Failed to create descriptor pool", err);
+        
         return driver;
 }
 
