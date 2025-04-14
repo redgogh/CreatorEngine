@@ -20,7 +20,7 @@
 #include <vronk/typedef.h>
 
 #define USE_VOLK
-// #define USE_GLFW
+#define USE_GLFW
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
@@ -54,6 +54,11 @@ void vrc_error_fatal(const char *msg, VkResult err)
 {
         fprintf(stderr, "Error: %s (Result=%d)\n", msg, err);
         exit(EXIT_FAILURE);
+}
+
+void vrc_load_obj()
+{
+        /* TODO Implementation load obj model */
 }
 
 struct VrcDriver {
@@ -115,7 +120,7 @@ typedef struct VrcTexture2D_T {
         uint32_t height = 0;
 } *VrcTexture2D;
 
-struct PushConst {
+struct PushConst {      
         glm::mat4 mvp;
 };
 
@@ -130,13 +135,13 @@ static Vertex vertices[] = {
         {{  0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
 };
 
-void swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
+void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
 
-void pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
+void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
 
-void texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture);
+void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture);
 
-VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice> &devices)
+VkPhysicalDevice vrc_pick_discrete_device(const std::vector<VkPhysicalDevice> &devices)
 {
         for (const auto &device: devices) {
                 VkPhysicalDeviceProperties properties;
@@ -151,7 +156,7 @@ VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice> &devic
 }
 
 #ifdef USE_GLFW
-VkResult pick_surface_format(const VrcDriver *driver, VkSurfaceFormatKHR *p_format)
+VkResult vrc_pick_surface_format(const VrcDriver *driver, VkSurfaceFormatKHR *p_format)
 {
         VkResult err;
 
@@ -187,7 +192,7 @@ TAG_PICK_SUITABLE_SURFACE_FORMAT_END:
 }
 #endif /* USE_GLFW */
 
-void find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
+void vrc_find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
 {
         uint32_t count;
         vkGetPhysicalDeviceQueueFamilyProperties(device, &count, VK_NULL_HANDLE);
@@ -212,7 +217,7 @@ void find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p
         vrc_error_fatal("Can't not found queue to support present", VK_ERROR_INITIALIZATION_FAILED);
 }
 
-VkResult load_shader_module(VkDevice device, const char *path, VkShaderModule *p_shader_module)
+VkResult vrc_load_shader_module(VkDevice device, const char *path, VkShaderModule *p_shader_module)
 {
         char *buf;
         size_t size;
@@ -235,7 +240,7 @@ VkResult load_shader_module(VkDevice device, const char *path, VkShaderModule *p
         return err;
 }
 
-VkResult fence_create(const VrcDriver *driver, VkFence *p_fence)
+VkResult vrc_fence_create(const VrcDriver *driver, VkFence *p_fence)
 {
         VkResult err;
 
@@ -246,12 +251,12 @@ VkResult fence_create(const VrcDriver *driver, VkFence *p_fence)
         return vkCreateFence(driver->device, &fenceCreateInfo, VK_NULL_HANDLE, p_fence);
 }
 
-void fence_destroy(const VrcDriver *driver, VkFence fence)
+void vrc_fence_destroy(const VrcDriver *driver, VkFence fence)
 {
         vkDestroyFence(driver->device, fence, VK_NULL_HANDLE);
 }
 
-VkResult semaphore_create(const VrcDriver *driver, VkSemaphore *p_semaphore)
+VkResult vrc_semaphore_create(const VrcDriver *driver, VkSemaphore *p_semaphore)
 {
         VkResult err;
 
@@ -262,12 +267,12 @@ VkResult semaphore_create(const VrcDriver *driver, VkSemaphore *p_semaphore)
         return vkCreateSemaphore(driver->device, &semaphoreCreateInfo, VK_NULL_HANDLE, p_semaphore);
 }
 
-void semaphore_destroy(const VrcDriver *driver, VkSemaphore semaphore)
+void vrc_semaphore_destroy(const VrcDriver *driver, VkSemaphore semaphore)
 {
         vkDestroySemaphore(driver->device, semaphore, VK_NULL_HANDLE);
 }
 
-VkResult command_buffer_alloc(const VrcDriver *driver, VkCommandBuffer *p_command_buffer)
+VkResult vrc_command_buffer_alloc(const VrcDriver *driver, VkCommandBuffer *p_command_buffer)
 {
         VkCommandBufferAllocateInfo allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -279,12 +284,12 @@ VkResult command_buffer_alloc(const VrcDriver *driver, VkCommandBuffer *p_comman
         return vkAllocateCommandBuffers(driver->device, &allocate_info, p_command_buffer);
 }
 
-void command_buffer_free(const VrcDriver *driver, VkCommandBuffer command_buffer)
+void vrc_command_buffer_free(const VrcDriver *driver, VkCommandBuffer command_buffer)
 {
         vkFreeCommandBuffers(driver->device, driver->command_pool, 1, &command_buffer);
 }
 
-VkResult buffer_create(const VrcDriver *driver, VkDeviceSize size, VrcBuffer *p_buffer, VkBufferUsageFlags usage)
+VkResult vrc_buffer_create(const VrcDriver *driver, VkDeviceSize size, VrcBuffer *p_buffer, VkBufferUsageFlags usage)
 {
         VkBufferCreateInfo buffer_ci = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -306,13 +311,13 @@ VkResult buffer_create(const VrcDriver *driver, VkDeviceSize size, VrcBuffer *p_
                                &tmp->allocation_info);
 }
 
-void buffer_destroy(VrcDriver *driver, VrcBuffer buffer)
+void vrc_buffer_destroy(VrcDriver *driver, VrcBuffer buffer)
 {
         vmaDestroyBuffer(driver->allocator, buffer->vk_buffer, buffer->allocation);
         memdel(buffer);
 }
 
-VkResult image_view2d_create(const VrcDriver *driver, VkImage image, VkFormat format, VkImageView *p_view2d)
+VkResult vrc_image_view2d_create(const VrcDriver *driver, VkImage image, VkFormat format, VkImageView *p_view2d)
 {
         VkImageViewCreateInfo image_view2d_ci = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -337,12 +342,12 @@ VkResult image_view2d_create(const VrcDriver *driver, VkImage image, VkFormat fo
         return vkCreateImageView(driver->device, &image_view2d_ci, VK_NULL_HANDLE, p_view2d);
 }
 
-void image_view2d_destroy(const VrcDriver *driver, VkImageView view)
+void vrc_image_view2d_destroy(const VrcDriver *driver, VkImageView view)
 {
         vkDestroyImageView(driver->device, view, VK_NULL_HANDLE);
 }
 
-VkResult texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, VrcTexture2D *p_texture)
+VkResult vrc_texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, VrcTexture2D *p_texture)
 {
         VkResult err;
         VrcTexture2D tmp = VK_NULL_HANDLE;
@@ -355,7 +360,7 @@ VkResult texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, VrcTe
 
         auto texture2d_cleanup = [&](VkResult err) {
                 if (err) {
-                        texture2d_destroy(driver, tmp);
+                        vrc_texture2d_destroy(driver, tmp);
                 }
                 return err;
         };
@@ -382,7 +387,7 @@ VkResult texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, VrcTe
                                   &tmp->allocation, &tmp->allocation_info)))
                 return texture2d_cleanup(err);
 
-        if ((err = image_view2d_create(driver, tmp->vk_image, tmp->format, &tmp->vk_view2d)))
+        if ((err = vrc_image_view2d_create(driver, tmp->vk_image, tmp->format, &tmp->vk_view2d)))
                 return texture2d_cleanup(err);
 
         *p_texture = tmp;
@@ -390,7 +395,7 @@ VkResult texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, VrcTe
         return err;
 }
 
-void texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture)
+void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture)
 {
         if (!texture)
                 return;
@@ -404,7 +409,7 @@ void texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture)
         memdel(texture);
 }
 
-VkResult pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p_pipeline)
+VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p_pipeline)
 {
         VkResult err;
         VrcPipeline tmp = VK_NULL_HANDLE;
@@ -414,7 +419,7 @@ VkResult pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p
         tmp = memnew<VrcPipeline_T>();
 
         /* use cleanup to clear resource when some error. */
-        auto pipeline_cleanup = [&](VkResult err) {
+        auto vrc_pipeline_cleanup = [&](VkResult err) {
                 if (vertex_shader_module != VK_NULL_HANDLE)
                         vkDestroyShaderModule(driver->device, vertex_shader_module, VK_NULL_HANDLE);
 
@@ -422,16 +427,16 @@ VkResult pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p
                         vkDestroyShaderModule(driver->device, fragment_shader_module, VK_NULL_HANDLE);
 
                 if (err != VK_SUCCESS)
-                        pipeline_destroy(driver, tmp);
+                        vrc_pipeline_destroy(driver, tmp);
 
                 return err;
         };
 
-        if ((err = load_shader_module(driver->device, "shaders/spir-v/simple_vertex.spv", &vertex_shader_module)))
-                return pipeline_cleanup(err);
+        if ((err = vrc_load_shader_module(driver->device, "shaders/spir-v/simple_vertex.spv", &vertex_shader_module)))
+                return vrc_pipeline_cleanup(err);
 
-        if ((err = load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module)))
-                return pipeline_cleanup(err);
+        if ((err = vrc_load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module)))
+                return vrc_pipeline_cleanup(err);
 
         VkPushConstantRange pushConstantRanges[] = {
                 {
@@ -449,7 +454,7 @@ VkResult pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p
 
         if ((err = vkCreatePipelineLayout(driver->device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE,
                                           &tmp->vk_pipeline_layout)))
-                return pipeline_cleanup(err);
+                return vrc_pipeline_cleanup(err);
 
         VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo[] = {
                 {
@@ -577,14 +582,14 @@ VkResult pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p
 
         if ((err = vkCreateGraphicsPipelines(driver->device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo,
                                              VK_NULL_HANDLE, &tmp->vk_pipeline)))
-                return pipeline_cleanup(err);
+                return vrc_pipeline_cleanup(err);
 
         *p_pipeline = tmp;
 
-        return pipeline_cleanup(err);
+        return vrc_pipeline_cleanup(err);
 }
 
-void pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline)
+void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline)
 {
         if (!pipeline)
                 return;
@@ -598,7 +603,7 @@ void pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline)
         memdel(pipeline);
 }
 
-void memory_read(const VrcDriver *driver, VrcBuffer buffer, size_t size, void *dst)
+void vrc_memory_read(const VrcDriver *driver, VrcBuffer buffer, size_t size, void *dst)
 {
         void *src;
         vmaMapMemory(driver->allocator, buffer->allocation, &src);
@@ -606,7 +611,7 @@ void memory_read(const VrcDriver *driver, VrcBuffer buffer, size_t size, void *d
         vmaUnmapMemory(driver->allocator, buffer->allocation);
 }
 
-void memory_write(const VrcDriver *driver, VrcBuffer buffer, size_t size, void *src)
+void vrc_memory_write(const VrcDriver *driver, VrcBuffer buffer, size_t size, void *src)
 {
         void *dst;
         vmaMapMemory(driver->allocator, buffer->allocation, &dst);
@@ -614,7 +619,7 @@ void memory_write(const VrcDriver *driver, VrcBuffer buffer, size_t size, void *
         vmaUnmapMemory(driver->allocator, buffer->allocation);
 }
 
-void memory_image_barrier(VkCommandBuffer command_buffer,
+void vrc_memory_image_barrier(VkCommandBuffer command_buffer,
                           VkImage image,
                           VkAccessFlags srcAccessMask,
                           VkAccessFlags dstAccessMask,
@@ -656,7 +661,7 @@ void memory_image_barrier(VkCommandBuffer command_buffer,
                 &barrier);
 }
 
-VkResult acquire_next_index(const VrcDriver *driver, VrcSwapchainEXT swapchain, uint32_t *p_index)
+VkResult vrc_acquire_next_index(const VrcDriver *driver, VrcSwapchainEXT swapchain, uint32_t *p_index)
 {
         return vkAcquireNextImageKHR(driver->device,
                                      swapchain->vk_swapchain,
@@ -666,7 +671,7 @@ VkResult acquire_next_index(const VrcDriver *driver, VrcSwapchainEXT swapchain, 
                                      p_index);
 }
 
-void cmd_begin(VkCommandBuffer command_buffer)
+void vrc_cmd_begin(VkCommandBuffer command_buffer)
 {
         VkCommandBufferBeginInfo begin_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -677,12 +682,12 @@ void cmd_begin(VkCommandBuffer command_buffer)
         vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
-void cmd_end(VkCommandBuffer command_buffer)
+void vrc_cmd_end(VkCommandBuffer command_buffer)
 {
         vkEndCommandBuffer(command_buffer);
 }
 
-void cmd_begin_once(VkCommandBuffer command_buffer)
+void vrc_cmd_begin_once(VkCommandBuffer command_buffer)
 {
         VkCommandBufferBeginInfo begin_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -692,14 +697,14 @@ void cmd_begin_once(VkCommandBuffer command_buffer)
         vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
-void cmd_end_once(VkCommandBuffer command_buffer)
+void vrc_cmd_end_once(VkCommandBuffer command_buffer)
 {
-        cmd_end(command_buffer);
+        vrc_cmd_end(command_buffer);
 }
 
-void cmd_begin_rendering(VkCommandBuffer command_buffer, uint32_t w, uint32_t h, VkImageView view2d)
+void vrc_cmd_begin_rendering(VkCommandBuffer command_buffer, uint32_t w, uint32_t h, VkImageView view2d)
 {
-        cmd_begin(command_buffer);
+        vrc_cmd_begin(command_buffer);
 
         VkRenderingAttachmentInfo renderingAttachmentInfo = {
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -740,43 +745,43 @@ void cmd_begin_rendering(VkCommandBuffer command_buffer, uint32_t w, uint32_t h,
         vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 }
 
-void cmd_end_rendering(VkCommandBuffer command_buffer)
+void vrc_cmd_end_rendering(VkCommandBuffer command_buffer)
 {
         vkCmdEndRendering(command_buffer);
-        cmd_end(command_buffer);
+        vrc_cmd_end(command_buffer);
 }
 
-void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrcPipeline pipeline)
+void vrc_cmd_bind_pipeline(VkCommandBuffer command_buffer, VrcPipeline pipeline)
 {
         vkCmdBindPipeline(command_buffer, pipeline->bindpoint, pipeline->vk_pipeline);
 }
 
-void cmd_push_constants(VkCommandBuffer command_buffer, VrcPipeline pipeline, VkShaderStageFlags stage, uint32_t offset, size_t size, const void *ptr)
+void vrc_cmd_push_constants(VkCommandBuffer command_buffer, VrcPipeline pipeline, VkShaderStageFlags stage, uint32_t offset, size_t size, const void *ptr)
 {
         vkCmdPushConstants(command_buffer, pipeline->vk_pipeline_layout, stage, offset, size, ptr);
 }
 
-void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrcBuffer vertex_buffer)
+void vrc_cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrcBuffer vertex_buffer)
 {
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, offsets);
 }
 
-void cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count)
+void vrc_cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count)
 {
         vkCmdDraw(command_buffer, vertex_count, 1, 0, 0);
 }
 
-uint32_t cmd_copy_image(VkCommandBuffer command_buffer, VrcTexture2D src, VrcBuffer dst)
+uint32_t vrc_cmd_copy_image(VkCommandBuffer command_buffer, VrcTexture2D src, VrcBuffer dst)
 {
-        memory_image_barrier(command_buffer,
-                             src->vk_image,
-                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                             VK_ACCESS_TRANSFER_READ_BIT,
-                             VK_IMAGE_LAYOUT_UNDEFINED,
-                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT);
+        vrc_memory_image_barrier(command_buffer,
+                                 src->vk_image,
+                                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                 VK_ACCESS_TRANSFER_READ_BIT,
+                                 VK_IMAGE_LAYOUT_UNDEFINED,
+                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         VkBufferImageCopy region = {
                 .imageSubresource = {
@@ -798,7 +803,7 @@ uint32_t cmd_copy_image(VkCommandBuffer command_buffer, VrcTexture2D src, VrcBuf
         return (src->width * src->height);
 }
 
-VkResult queue_submit(const VrcDriver *driver,
+VkResult vrc_queue_submit(const VrcDriver *driver,
                       VkCommandBuffer command_buffer,
                       uint32_t wait_count,
                       VkSemaphore *p_waits,
@@ -821,34 +826,34 @@ VkResult queue_submit(const VrcDriver *driver,
         return vkQueueSubmit(driver->queue, 1, &submitInfo, fence);
 }
 
-VkResult present_submit(const VrcDriver *driver, VkCommandBuffer command_buffer, VrcSwapchainEXT swapchain)
+VkResult vrc_present_submit(const VrcDriver *driver, VkCommandBuffer command_buffer, VrcSwapchainEXT swapchain)
 {
         VkPipelineStageFlags wait_pipeline_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        queue_submit(driver,
-                     command_buffer,
-                     1,
-                     &swapchain->acquire_index_semaphore[swapchain->frame],
-                     &wait_pipeline_stage,
-                     1,
-                     &swapchain->render_finish_semaphore[swapchain->frame],
-                     swapchain->fence[swapchain->frame]);
+        vrc_queue_submit(driver,
+                         command_buffer,
+                         1,
+                         &swapchain->acquire_index_semaphore[swapchain->frame],
+                         &wait_pipeline_stage,
+                         1,
+                         &swapchain->render_finish_semaphore[swapchain->frame],
+                         swapchain->fence[swapchain->frame]);
 
         VkCommandBuffer once_command_buffer;
-        command_buffer_alloc(driver, &once_command_buffer);
+        vrc_command_buffer_alloc(driver, &once_command_buffer);
 
-        cmd_begin_once(once_command_buffer);
+        vrc_cmd_begin_once(once_command_buffer);
 
-        memory_image_barrier(once_command_buffer,
-                             swapchain->resources[swapchain->acquire_index].image,
-                             VK_ACCESS_NONE,
-                             VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
-                             VK_IMAGE_LAYOUT_UNDEFINED,
-                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        vrc_memory_image_barrier(once_command_buffer,
+                                 swapchain->resources[swapchain->acquire_index].image,
+                                 VK_ACCESS_NONE,
+                                 VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
+                                 VK_IMAGE_LAYOUT_UNDEFINED,
+                                 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
-        cmd_end_once(once_command_buffer);
-        queue_submit(driver, once_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
+        vrc_cmd_end_once(once_command_buffer);
+        vrc_queue_submit(driver, once_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
 
         VkPresentInfoKHR presentInfo = {
                 .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -862,16 +867,16 @@ VkResult present_submit(const VrcDriver *driver, VkCommandBuffer command_buffer,
         return vkQueuePresentKHR(driver->queue, &presentInfo);
 }
 
-VkResult queue_wait_idle(const VrcDriver *driver)
+VkResult vrc_queue_wait_idle(const VrcDriver *driver)
 {
         return vkQueueWaitIdle(driver->queue);
 }
 
 #ifdef USE_GLFW
-VrcDriver *vrak_driver_initialize(GLFWwindow *window)
+VrcDriver *vrc_driver_initialize(GLFWwindow *window)
 #else
 
-VrcDriver *vrak_driver_initialize()
+VrcDriver *vrc_driver_initialize()
 #endif /* USE_GLFW */
 {
         VkResult err;
@@ -944,7 +949,7 @@ VrcDriver *vrak_driver_initialize()
         if ((err = vkEnumeratePhysicalDevices(driver->instance, &count, std::data(devices))))
                 vrc_error_fatal("Failed to enumerate physical device list data", err);
 
-        driver->gpu = pick_discrete_device(devices);
+        driver->gpu = vrc_pick_discrete_device(devices);
 
 #ifdef USE_GLFW
         if ((err = glfwCreateWindowSurface(driver->instance, window, VK_NULL_HANDLE, &driver->surface)))
@@ -958,9 +963,9 @@ VrcDriver *vrak_driver_initialize()
         float priorities = 1.0f;
 
 #ifdef USE_GLFW
-        find_queue_index(driver->gpu, driver->surface, &driver->queue_index);
+        vrc_find_queue_index(driver->gpu, driver->surface, &driver->queue_index);
 #else
-        find_queue_index(driver->gpu, VK_NULL_HANDLE, &driver->queue_index);
+        vrc_find_queue_index(driver->gpu, VK_NULL_HANDLE, &driver->queue_index);
 #endif /* USE_GLFW */
 
         VkDeviceQueueCreateInfo queue_ci = {
@@ -1026,7 +1031,7 @@ VrcDriver *vrak_driver_initialize()
         return driver;
 }
 
-void vrak_driver_destroy(VrcDriver *driver)
+void vrc_driver_destroy(VrcDriver *driver)
 {
         vkDeviceWaitIdle(driver->device);
         vmaDestroyAllocator(driver->allocator);
@@ -1042,7 +1047,7 @@ void vrak_driver_destroy(VrcDriver *driver)
 }
 
 #ifdef USE_GLFW
-VkResult swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
+VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
 {
         VkResult err;
         VrcSwapchainEXT tmp = VK_NULL_HANDLE;
@@ -1051,13 +1056,13 @@ VkResult swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain,
         tmp = memnew<VrcSwapchainEXT_T>();
         
         /* use cleanup to clear resource when some error. */
-        auto swapchain_cleanup = [&](VkResult err) {
-                swapchain_destroy(driver, tmp);
+        auto vrc_swapchain_cleanup = [&](VkResult err) {
+                vrc_swapchain_destroy(driver, tmp);
                 return err;
         };
 
         if ((err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &tmp->capabilities)))
-                return swapchain_cleanup(err);
+                return vrc_swapchain_cleanup(err);
 
         uint32_t min = tmp->capabilities.minImageCount;
         uint32_t max = tmp->capabilities.maxImageCount;
@@ -1069,8 +1074,8 @@ VkResult swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain,
         *p_swapchain = tmp;
 
         VkSurfaceFormatKHR surface_format;
-        if ((err = pick_surface_format(driver, &surface_format)))
-                return swapchain_cleanup(err);
+        if ((err = vrc_pick_surface_format(driver, &surface_format)))
+                return vrc_swapchain_cleanup(err);
 
         tmp->format = surface_format.format;
         tmp->color_space = surface_format.colorSpace;
@@ -1093,15 +1098,15 @@ VkResult swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain,
         };
 
         if ((err = vkCreateSwapchainKHR(driver->device, &swapchainCreateInfoKHR, VK_NULL_HANDLE, &tmp->vk_swapchain)))
-                return swapchain_cleanup(err);
+                return vrc_swapchain_cleanup(err);
 
         uint32_t count;
         if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, VK_NULL_HANDLE)))
-                return swapchain_cleanup(err);
+                return vrc_swapchain_cleanup(err);
 
         images.resize(count);
         if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, std::data(images))))
-                return swapchain_cleanup(err);
+                return vrc_swapchain_cleanup(err);
 
         tmp->resources.resize(tmp->min_image_count);
         tmp->acquire_index_semaphore.resize(tmp->min_image_count);
@@ -1112,25 +1117,25 @@ VkResult swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain,
         for (int i = 0; i < tmp->min_image_count; ++i) {
 
                 tmp->resources[i].image = images[i];
-                if ((err = image_view2d_create(driver, tmp->resources[i].image, tmp->format, &(tmp->resources[i].image_view))))
-                        return swapchain_cleanup(err);
+                if ((err = vrc_image_view2d_create(driver, tmp->resources[i].image, tmp->format, &(tmp->resources[i].image_view))))
+                        return vrc_swapchain_cleanup(err);
 
-                if ((err = semaphore_create(driver, &(tmp->acquire_index_semaphore[i]))))
-                        return swapchain_cleanup(err);
+                if ((err = vrc_semaphore_create(driver, &(tmp->acquire_index_semaphore[i]))))
+                        return vrc_swapchain_cleanup(err);
 
-                if ((err = semaphore_create(driver, &(tmp->render_finish_semaphore[i]))))
-                        return swapchain_cleanup(err);
+                if ((err = vrc_semaphore_create(driver, &(tmp->render_finish_semaphore[i]))))
+                        return vrc_swapchain_cleanup(err);
 
-                if ((err = fence_create(driver, &(tmp->fence[i]))))
-                        return swapchain_cleanup(err);
+                if ((err = vrc_fence_create(driver, &(tmp->fence[i]))))
+                        return vrc_swapchain_cleanup(err);
 
-                command_buffer_alloc(driver, &(tmp->command_buffers[i]));
+                vrc_command_buffer_alloc(driver, &(tmp->command_buffers[i]));
         }
 
         return err;
 }
 
-void swapchain_resize_check(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain)
+void vrc_swapchain_resize_check(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain)
 {
         VkSurfaceCapabilitiesKHR capabilities;
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &capabilities);
@@ -1139,13 +1144,13 @@ void swapchain_resize_check(const VrcDriver *driver, VrcSwapchainEXT *p_swapchai
         if ((extent.width != 0 || extent.height != 0) && ((*p_swapchain)->width != extent.width || (*p_swapchain)->height != extent.height)) {
                 vkDeviceWaitIdle(driver->device);
                 VrcSwapchainEXT tmp = VK_NULL_HANDLE;
-                swapchain_create(driver, &tmp, (*p_swapchain));
-                swapchain_destroy(driver, (*p_swapchain));
+                vrc_swapchain_create(driver, &tmp, (*p_swapchain));
+                vrc_swapchain_destroy(driver, (*p_swapchain));
                 *p_swapchain = tmp;
         }
 }
 
-void swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain)
+void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain)
 {
         if (swapchain == VK_NULL_HANDLE)
                 return;
@@ -1156,19 +1161,19 @@ void swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain)
                 auto resource = swapchain->resources[i];
 
                 if (resource.image_view != VK_NULL_HANDLE)
-                        image_view2d_destroy(driver, resource.image_view);
+                        vrc_image_view2d_destroy(driver, resource.image_view);
 
                 if (swapchain->acquire_index_semaphore[i] != VK_NULL_HANDLE)
-                        semaphore_destroy(driver, swapchain->acquire_index_semaphore[i]);
+                        vrc_semaphore_destroy(driver, swapchain->acquire_index_semaphore[i]);
 
                 if (swapchain->render_finish_semaphore[i] != VK_NULL_HANDLE)
-                        semaphore_destroy(driver, swapchain->render_finish_semaphore[i]);
+                        vrc_semaphore_destroy(driver, swapchain->render_finish_semaphore[i]);
 
                 if (swapchain->fence[i] != VK_NULL_HANDLE)
-                        fence_destroy(driver, swapchain->fence[i]);
+                        vrc_fence_destroy(driver, swapchain->fence[i]);
 
                 if (swapchain->command_buffers[i] != VK_NULL_HANDLE)
-                        command_buffer_free(driver, swapchain->command_buffers[i]);
+                        vrc_command_buffer_free(driver, swapchain->command_buffers[i]);
         }
 
         vkDestroySwapchainKHR(driver->device, swapchain->vk_swapchain, VK_NULL_HANDLE);
@@ -1216,31 +1221,31 @@ int main()
 
 #ifdef USE_GLFW
         window = glfwCreateWindow(800, 600, "Vronk Cube", nullptr, nullptr);
-        driver = vrak_driver_initialize(window);
-        swapchain_create(driver, &swapchain);
+        driver = vrc_driver_initialize(window);
+        vrc_swapchain_create(driver, &swapchain);
 #else
-        driver = vrak_driver_initialize();
+        driver = vrc_driver_initialize();
 
-        command_buffer_alloc(driver, &command_buffer_ring);
+        vrc_command_buffer_alloc(driver, &command_buffer_ring);
 #endif /* USE_GLFW */
 
         // create vertex buffer
-        if ((err = buffer_create(driver, sizeof(vertices), &vertex_buffer,
+        if ((err = vrc_buffer_create(driver, sizeof(vertices), &vertex_buffer,
                                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT)))
                 vrc_error_fatal("Failed to create vertex buffer", err);
 
-        memory_write(driver, vertex_buffer, sizeof(vertices), (void *) vertices);
+        vrc_memory_write(driver, vertex_buffer, sizeof(vertices), (void *) vertices);
 
 #ifdef USE_GLFW
-        err = pipeline_create(driver, swapchain->format, &pipeline);
+        err = vrc_pipeline_create(driver, swapchain->format, &pipeline);
 #else
-        err = pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
+        err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
 #endif /* USE_GLFW */
 
         if (err) vrc_error_fatal("Failed to create graphics pipeline", err);
 
 #ifndef USE_GLFW
-        if ((err = texture2d_create(driver, 800, 600, &texture)))
+        if ((err = vrc_texture2d_create(driver, 800, 600, &texture)))
                 vrc_error_fatal("Failed to create texture 2d", err);
 #endif /* USE_GLFW */
 
@@ -1254,18 +1259,18 @@ int main()
 
 #ifdef USE_GLFW
         while (!glfwWindowShouldClose(window)) {
-                swapchain_resize_check(driver, &swapchain);
+                vrc_swapchain_resize_check(driver, &swapchain);
 
                 swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
-                acquire_next_index(driver, swapchain, &swapchain->acquire_index);
+                vrc_acquire_next_index(driver, swapchain, &swapchain->acquire_index);
 
                 command_buffer_ring = swapchain->command_buffers[swapchain->frame];
                 VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
-                cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
+                vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
                 float aspect = (float) swapchain->width / (float) swapchain->height;
 #else
                 float aspect = 800 / 600;
-                cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
+                vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
 #endif /* USE_GLFW */
                 
                 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
@@ -1274,48 +1279,47 @@ int main()
                 PushConst push_const;
                 push_const.mvp = proj * view * model;
 
-                cmd_bind_pipeline(command_buffer_ring, pipeline);
-                cmd_push_constants(command_buffer_ring, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConst), &push_const);
-                cmd_bind_vertex_buffer(command_buffer_ring, vertex_buffer);
-                cmd_draw(command_buffer_ring, sizeof(vertices));
-                cmd_end_rendering(command_buffer_ring);
+                vrc_cmd_bind_pipeline(command_buffer_ring, pipeline);
+                vrc_cmd_push_constants(command_buffer_ring, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConst), &push_const);
+                vrc_cmd_bind_vertex_buffer(command_buffer_ring, vertex_buffer);
+                vrc_cmd_draw(command_buffer_ring, sizeof(vertices));
+                vrc_cmd_end_rendering(command_buffer_ring);
 
 #ifdef USE_GLFW
-                present_submit(driver, command_buffer_ring, swapchain);
+                vrc_present_submit(driver, command_buffer_ring, swapchain);
 
                 vkWaitForFences(driver->device, 1, &(swapchain->fence[swapchain->frame]), VK_TRUE, UINT64_MAX);
                 vkResetFences(driver->device, 1, &(swapchain->fence[swapchain->frame]));
                 vkResetCommandBuffer(command_buffer_ring, 0);
 #else
-                queue_submit(driver, command_buffer_ring, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
+                vrc_queue_submit(driver, command_buffer_ring, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
 #endif /* USE_GLFW */
 
 #ifndef USE_GLFW
-                queue_wait_idle(driver);
+                vrc_queue_wait_idle(driver);
                 VrcBuffer copy_buffer;
                 uint32_t copy_size = texture->width * texture->height * 4;
 
-                if ((err = buffer_create(driver, copy_size, &copy_buffer,
-                                         VK_BUFFER_USAGE_TRANSFER_DST_BIT)))
+                if ((err = vrc_buffer_create(driver, copy_size, &copy_buffer, VK_BUFFER_USAGE_TRANSFER_DST_BIT)))
                         vrc_error_fatal("Failed to create copy_buffer", err);
 
                 VkCommandBuffer copy_command_buffer;
-                command_buffer_alloc(driver, &copy_command_buffer);
+                vrc_command_buffer_alloc(driver, &copy_command_buffer);
 
-                cmd_begin(copy_command_buffer);
-                cmd_copy_image(copy_command_buffer, texture, copy_buffer);
-                cmd_end(copy_command_buffer);
-                queue_submit(driver, copy_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0);
-                queue_wait_idle(driver);
+                vrc_cmd_begin(copy_command_buffer);
+                vrc_cmd_copy_image(copy_command_buffer, texture, copy_buffer);
+                vrc_cmd_end(copy_command_buffer);
+                vrc_queue_submit(driver, copy_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0);
+                vrc_queue_wait_idle(driver);
 
-                command_buffer_free(driver, copy_command_buffer);
+                vrc_command_buffer_free(driver, copy_command_buffer);
 
                 void *data = malloc(copy_size);
-                memory_read(driver, copy_buffer, copy_size, data);
+                vrc_memory_read(driver, copy_buffer, copy_size, data);
                 stbi_write_png("./rendered.png", texture->width, texture->height, 4, data, texture->width * 4);
                 free(data);
 
-                buffer_destroy(driver, copy_buffer);
+                vrc_buffer_destroy(driver, copy_buffer);
 #endif /* USE_GLFW */
 
 #ifdef USE_GLFW
@@ -1324,18 +1328,18 @@ int main()
 #endif /* USE_GLFW */
 
 #ifndef USE_GLFW
-        texture2d_destroy(driver, texture);
-        command_buffer_free(driver, command_buffer_ring);
+        vrc_texture2d_destroy(driver, texture);
+        vrc_command_buffer_free(driver, command_buffer_ring);
 #endif /* USE_GLFW */
 
-        pipeline_destroy(driver, pipeline);
-        buffer_destroy(driver, vertex_buffer);
+        vrc_pipeline_destroy(driver, pipeline);
+        vrc_buffer_destroy(driver, vertex_buffer);
 
 #ifdef USE_GLFW
-        swapchain_destroy(driver, swapchain);
+        vrc_swapchain_destroy(driver, swapchain);
 #endif /* USE_GLFW */
 
-        vrak_driver_destroy(driver);
+        vrc_driver_destroy(driver);
 
 #ifdef USE_GLFW
         glfwDestroyWindow(window);
