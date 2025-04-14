@@ -1064,7 +1064,7 @@ VrcDriver *vrc_driver_initialize()
                 .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
                 .vkGetDeviceProcAddr = vkGetDeviceProcAddr,
         };
-
+        
         VmaAllocatorCreateInfo allocator_ci = {
                 .physicalDevice = driver->gpu,
                 .device = driver->device,
@@ -1075,18 +1075,19 @@ VrcDriver *vrc_driver_initialize()
         if ((err = vmaCreateAllocator(&allocator_ci, &driver->allocator)))
                 vrc_error_fatal("Failed to create VMA allocator", err);
         
-//        VkDescriptorPoolSize descriptorPoolSizes[] = {
-//            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256 },
-//        };
-//        
-//        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
-//            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-//            .poolSizeCount = std::size(descriptorPoolSizes),
-//            .pPoolSizes = std::data(descriptorPoolSizes),
-//        };
-//        
-//        if ((err = vkCreateDescriptorPool(driver->device, &descriptorPoolCreateInfo, VK_NULL_HANDLE, &driver->descriptor_pool)))
-//                vrc_error_fatal("Failed to create descriptor pool", err);
+        VkDescriptorPoolSize descriptorPoolSizes[] = {
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256 },
+        };
+
+        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .maxSets = 512,
+            .poolSizeCount = std::size(descriptorPoolSizes),
+            .pPoolSizes = std::data(descriptorPoolSizes),
+        };
+
+        if ((err = vkCreateDescriptorPool(driver->device, &descriptorPoolCreateInfo, VK_NULL_HANDLE, &driver->descriptor_pool)))
+                vrc_error_fatal("Failed to create descriptor pool", err);
         
         return driver;
 }
@@ -1094,6 +1095,7 @@ VrcDriver *vrc_driver_initialize()
 void vrc_driver_destroy(VrcDriver *driver)
 {
         vkDeviceWaitIdle(driver->device);
+        vkDestroyDescriptorPool(driver->device, driver->descriptor_pool, VK_NULL_HANDLE);
         vmaDestroyAllocator(driver->allocator);
         vkDestroyCommandPool(driver->device, driver->command_pool, VK_NULL_HANDLE);
         vkDestroyDevice(driver->device, VK_NULL_HANDLE);
