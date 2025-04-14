@@ -24,9 +24,7 @@
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
-
 #include <volk/volk.h>
-
 #else
 #include <vulkan/vulkan.h>
 #endif /* USE_VOLK */
@@ -58,7 +56,7 @@ void error_fatal(const char *msg, VkResult err)
         exit(EXIT_FAILURE);
 }
 
-struct VrnkDriver {
+struct VrnDriver {
         uint32_t version = 0;
         VkInstance instance = VK_NULL_HANDLE;
 #ifdef USE_GLFW
@@ -72,18 +70,18 @@ struct VrnkDriver {
         VmaAllocator allocator = VK_NULL_HANDLE;
 };
 
-struct VrnkSwapchainResourceEXT {
+struct VrnSwapchainResourceEXT {
         VkImage image = VK_NULL_HANDLE;
         VkImageView image_view = VK_NULL_HANDLE;
 };
 
-typedef struct VrnkSwapchainEXT_T {
+typedef struct VrnSwapchainEXT_T {
         VkSwapchainKHR vk_swapchain = VK_NULL_HANDLE;
         VkSurfaceCapabilitiesKHR capabilities = {};
         uint32_t min_image_count = 0;
         VkFormat format = VK_FORMAT_UNDEFINED;
         VkColorSpaceKHR color_space = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-        std::vector<VrnkSwapchainResourceEXT> resources;
+        std::vector<VrnSwapchainResourceEXT> resources;
         uint32_t width = 0;
         uint32_t height = 0;
         uint32_t acquire_index = 0;
@@ -92,22 +90,22 @@ typedef struct VrnkSwapchainEXT_T {
         std::vector<VkSemaphore> render_finish_semaphore;
         std::vector<VkFence> fence;
         std::vector<VkCommandBuffer> command_buffers;
-} *VrnkSwapchainEXT;
+} *VrnSwapchainEXT;
 
-typedef struct VrnkBuffer_T {
+typedef struct VrnBuffer_T {
         VkBuffer vk_buffer = VK_NULL_HANDLE;
         VkDeviceSize size = 0;
         VmaAllocation allocation = VK_NULL_HANDLE;
         VmaAllocationInfo allocation_info = {};
-} *VrnkBuffer;
+} *VrnBuffer;
 
-typedef struct VrnkPipeline_T {
+typedef struct VrnPipeline_T {
         VkPipeline vk_pipeline = VK_NULL_HANDLE;
         VkPipelineLayout vk_pipeline_layout = VK_NULL_HANDLE;
         VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-} *VrnkPipeline;
+} *VrnPipeline;
 
-typedef struct VrnkTexture2D_T {
+typedef struct VrnTexture2D_T {
         VkImage vk_image = VK_NULL_HANDLE;
         VmaAllocation allocation = VK_NULL_HANDLE;
         VmaAllocationInfo allocation_info = {};
@@ -115,7 +113,7 @@ typedef struct VrnkTexture2D_T {
         VkFormat format = VK_FORMAT_UNDEFINED;
         uint32_t width = 0;
         uint32_t height = 0;
-} *VrnkTexture2D;
+} *VrnTexture2D;
 
 struct PushConst {
         glm::mat4 mvp;
@@ -132,11 +130,11 @@ static Vertex vertices[] = {
         {{  0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
 };
 
-void swapchain_destroy(const VrnkDriver *driver, VrnkSwapchainEXT swapchain);
+void swapchain_destroy(const VrnDriver *driver, VrnSwapchainEXT swapchain);
 
-void pipeline_destroy(const VrnkDriver *driver, VrnkPipeline pipeline);
+void pipeline_destroy(const VrnDriver *driver, VrnPipeline pipeline);
 
-void texture2d_destroy(const VrnkDriver *driver, VrnkTexture2D texture);
+void texture2d_destroy(const VrnDriver *driver, VrnTexture2D texture);
 
 VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice> &devices)
 {
@@ -153,7 +151,7 @@ VkPhysicalDevice pick_discrete_device(const std::vector<VkPhysicalDevice> &devic
 }
 
 #ifdef USE_GLFW
-VkResult pick_suitable_surface_format(const VrnkDriver *driver, VkSurfaceFormatKHR *p_format)
+VkResult pick_suitable_surface_format(const VrnDriver *driver, VkSurfaceFormatKHR *p_format)
 {
         VkResult err;
 
@@ -237,7 +235,7 @@ VkResult load_shader_module(VkDevice device, const char *path, VkShaderModule *p
         return err;
 }
 
-VkResult fence_create(const VrnkDriver *driver, VkFence *p_fence)
+VkResult fence_create(const VrnDriver *driver, VkFence *p_fence)
 {
         VkResult err;
 
@@ -248,12 +246,12 @@ VkResult fence_create(const VrnkDriver *driver, VkFence *p_fence)
         return vkCreateFence(driver->device, &fenceCreateInfo, VK_NULL_HANDLE, p_fence);
 }
 
-void fence_destroy(const VrnkDriver *driver, VkFence fence)
+void fence_destroy(const VrnDriver *driver, VkFence fence)
 {
         vkDestroyFence(driver->device, fence, VK_NULL_HANDLE);
 }
 
-VkResult semaphore_create(const VrnkDriver *driver, VkSemaphore *p_semaphore)
+VkResult semaphore_create(const VrnDriver *driver, VkSemaphore *p_semaphore)
 {
         VkResult err;
 
@@ -264,12 +262,12 @@ VkResult semaphore_create(const VrnkDriver *driver, VkSemaphore *p_semaphore)
         return vkCreateSemaphore(driver->device, &semaphoreCreateInfo, VK_NULL_HANDLE, p_semaphore);
 }
 
-void semaphore_destroy(const VrnkDriver *driver, VkSemaphore semaphore)
+void semaphore_destroy(const VrnDriver *driver, VkSemaphore semaphore)
 {
         vkDestroySemaphore(driver->device, semaphore, VK_NULL_HANDLE);
 }
 
-VkResult command_buffer_alloc(const VrnkDriver *driver, VkCommandBuffer *p_command_buffer)
+VkResult command_buffer_alloc(const VrnDriver *driver, VkCommandBuffer *p_command_buffer)
 {
         VkCommandBufferAllocateInfo allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -281,12 +279,12 @@ VkResult command_buffer_alloc(const VrnkDriver *driver, VkCommandBuffer *p_comma
         return vkAllocateCommandBuffers(driver->device, &allocate_info, p_command_buffer);
 }
 
-void command_buffer_free(const VrnkDriver *driver, VkCommandBuffer command_buffer)
+void command_buffer_free(const VrnDriver *driver, VkCommandBuffer command_buffer)
 {
         vkFreeCommandBuffers(driver->device, driver->command_pool, 1, &command_buffer);
 }
 
-VkResult buffer_create(const VrnkDriver *driver, VkDeviceSize size, VrnkBuffer *p_buffer, VkBufferUsageFlags usage)
+VkResult buffer_create(const VrnDriver *driver, VkDeviceSize size, VrnBuffer *p_buffer, VkBufferUsageFlags usage)
 {
         VkBufferCreateInfo buffer_ci = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -300,7 +298,7 @@ VkResult buffer_create(const VrnkDriver *driver, VkDeviceSize size, VrnkBuffer *
                 .usage = VMA_MEMORY_USAGE_AUTO,
         };
 
-        VrnkBuffer tmp = memnew<VrnkBuffer_T>();
+        VrnBuffer tmp = memnew<VrnBuffer_T>();
         tmp->size = size;
         *p_buffer = tmp;
 
@@ -308,13 +306,13 @@ VkResult buffer_create(const VrnkDriver *driver, VkDeviceSize size, VrnkBuffer *
                                &tmp->allocation_info);
 }
 
-void buffer_destroy(VrnkDriver *driver, VrnkBuffer buffer)
+void buffer_destroy(VrnDriver *driver, VrnBuffer buffer)
 {
         vmaDestroyBuffer(driver->allocator, buffer->vk_buffer, buffer->allocation);
         memdel(buffer);
 }
 
-VkResult image_view2d_create(const VrnkDriver *driver, VkImage image, VkFormat format, VkImageView *p_view2d)
+VkResult image_view2d_create(const VrnDriver *driver, VkImage image, VkFormat format, VkImageView *p_view2d)
 {
         VkImageViewCreateInfo image_view2d_ci = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -339,17 +337,17 @@ VkResult image_view2d_create(const VrnkDriver *driver, VkImage image, VkFormat f
         return vkCreateImageView(driver->device, &image_view2d_ci, VK_NULL_HANDLE, p_view2d);
 }
 
-void image_view2d_destroy(const VrnkDriver *driver, VkImageView view)
+void image_view2d_destroy(const VrnDriver *driver, VkImageView view)
 {
         vkDestroyImageView(driver->device, view, VK_NULL_HANDLE);
 }
 
-VkResult texture2d_create(const VrnkDriver *driver, uint32_t w, uint32_t h, VrnkTexture2D *p_texture)
+VkResult texture2d_create(const VrnDriver *driver, uint32_t w, uint32_t h, VrnTexture2D *p_texture)
 {
         VkResult err;
-        VrnkTexture2D tmp = VK_NULL_HANDLE;
+        VrnTexture2D tmp = VK_NULL_HANDLE;
 
-        tmp = memnew<VrnkTexture2D_T>();
+        tmp = memnew<VrnTexture2D_T>();
 
         tmp->width = w;
         tmp->height = h;
@@ -392,7 +390,7 @@ VkResult texture2d_create(const VrnkDriver *driver, uint32_t w, uint32_t h, Vrnk
         return err;
 }
 
-void texture2d_destroy(const VrnkDriver *driver, VrnkTexture2D texture)
+void texture2d_destroy(const VrnDriver *driver, VrnTexture2D texture)
 {
         if (!texture)
                 return;
@@ -406,14 +404,14 @@ void texture2d_destroy(const VrnkDriver *driver, VrnkTexture2D texture)
         memdel(texture);
 }
 
-VkResult pipeline_create(const VrnkDriver *driver, VkFormat color, VrnkPipeline *p_pipeline)
+VkResult pipeline_create(const VrnDriver *driver, VkFormat color, VrnPipeline *p_pipeline)
 {
         VkResult err;
-        VrnkPipeline tmp = VK_NULL_HANDLE;
+        VrnPipeline tmp = VK_NULL_HANDLE;
         VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
         VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
 
-        tmp = memnew<VrnkPipeline_T>();
+        tmp = memnew<VrnPipeline_T>();
 
         /* use cleanup to clear resource when some error. */
         auto pipeline_cleanup = [&](VkResult err) {
@@ -586,7 +584,7 @@ VkResult pipeline_create(const VrnkDriver *driver, VkFormat color, VrnkPipeline 
         return pipeline_cleanup(err);
 }
 
-void pipeline_destroy(const VrnkDriver *driver, VrnkPipeline pipeline)
+void pipeline_destroy(const VrnDriver *driver, VrnPipeline pipeline)
 {
         if (!pipeline)
                 return;
@@ -600,7 +598,7 @@ void pipeline_destroy(const VrnkDriver *driver, VrnkPipeline pipeline)
         memdel(pipeline);
 }
 
-void memory_read(const VrnkDriver *driver, VrnkBuffer buffer, size_t size, void *dst)
+void memory_read(const VrnDriver *driver, VrnBuffer buffer, size_t size, void *dst)
 {
         void *src;
         vmaMapMemory(driver->allocator, buffer->allocation, &src);
@@ -608,7 +606,7 @@ void memory_read(const VrnkDriver *driver, VrnkBuffer buffer, size_t size, void 
         vmaUnmapMemory(driver->allocator, buffer->allocation);
 }
 
-void memory_write(const VrnkDriver *driver, VrnkBuffer buffer, size_t size, void *src)
+void memory_write(const VrnDriver *driver, VrnBuffer buffer, size_t size, void *src)
 {
         void *dst;
         vmaMapMemory(driver->allocator, buffer->allocation, &dst);
@@ -658,7 +656,7 @@ void memory_image_barrier(VkCommandBuffer command_buffer,
                 &barrier);
 }
 
-VkResult acquire_next_index(const VrnkDriver *driver, VrnkSwapchainEXT swapchain, uint32_t *p_index)
+VkResult acquire_next_index(const VrnDriver *driver, VrnSwapchainEXT swapchain, uint32_t *p_index)
 {
         return vkAcquireNextImageKHR(driver->device,
                                      swapchain->vk_swapchain,
@@ -748,17 +746,17 @@ void cmd_end_rendering(VkCommandBuffer command_buffer)
         cmd_end(command_buffer);
 }
 
-void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrnkPipeline pipeline)
+void cmd_bind_pipeline(VkCommandBuffer command_buffer, VrnPipeline pipeline)
 {
         vkCmdBindPipeline(command_buffer, pipeline->bindpoint, pipeline->vk_pipeline);
 }
 
-void cmd_push_constants(VkCommandBuffer command_buffer, VrnkPipeline pipeline, VkShaderStageFlags stage, uint32_t offset, size_t size, const void *ptr)
+void cmd_push_constants(VkCommandBuffer command_buffer, VrnPipeline pipeline, VkShaderStageFlags stage, uint32_t offset, size_t size, const void *ptr)
 {
         vkCmdPushConstants(command_buffer, pipeline->vk_pipeline_layout, stage, offset, size, ptr);
 }
 
-void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrnkBuffer vertex_buffer)
+void cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrnBuffer vertex_buffer)
 {
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, offsets);
@@ -769,7 +767,7 @@ void cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count)
         vkCmdDraw(command_buffer, vertex_count, 1, 0, 0);
 }
 
-uint32_t cmd_copy_image(VkCommandBuffer command_buffer, VrnkTexture2D src, VrnkBuffer dst)
+uint32_t cmd_copy_image(VkCommandBuffer command_buffer, VrnTexture2D src, VrnBuffer dst)
 {
         memory_image_barrier(command_buffer,
                              src->vk_image,
@@ -800,7 +798,7 @@ uint32_t cmd_copy_image(VkCommandBuffer command_buffer, VrnkTexture2D src, VrnkB
         return (src->width * src->height);
 }
 
-VkResult queue_submit(const VrnkDriver *driver,
+VkResult queue_submit(const VrnDriver *driver,
                       VkCommandBuffer command_buffer,
                       uint32_t wait_count,
                       VkSemaphore *p_waits,
@@ -823,7 +821,7 @@ VkResult queue_submit(const VrnkDriver *driver,
         return vkQueueSubmit(driver->queue, 1, &submitInfo, fence);
 }
 
-VkResult present_submit(const VrnkDriver *driver, VkCommandBuffer command_buffer, VrnkSwapchainEXT swapchain)
+VkResult present_submit(const VrnDriver *driver, VkCommandBuffer command_buffer, VrnSwapchainEXT swapchain)
 {
         VkPipelineStageFlags wait_pipeline_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         queue_submit(driver,
@@ -864,22 +862,22 @@ VkResult present_submit(const VrnkDriver *driver, VkCommandBuffer command_buffer
         return vkQueuePresentKHR(driver->queue, &presentInfo);
 }
 
-VkResult queue_wait_idle(const VrnkDriver *driver)
+VkResult queue_wait_idle(const VrnDriver *driver)
 {
         return vkQueueWaitIdle(driver->queue);
 }
 
 #ifdef USE_GLFW
-VrnkDriver *vrak_driver_initialize(GLFWwindow *window)
+VrnDriver *vrak_driver_initialize(GLFWwindow *window)
 #else
 
-VrnkDriver *vrak_driver_initialize()
+VrnDriver *vrak_driver_initialize()
 #endif /* USE_GLFW */
 {
         VkResult err;
         uint32_t count;
 
-        VrnkDriver *driver = memnew<VrnkDriver>();
+        VrnDriver *driver = memnew<VrnDriver>();
 
 #ifdef USE_VOLK
         /*
@@ -941,8 +939,6 @@ VrnkDriver *vrak_driver_initialize()
 
         if ((err = vkEnumeratePhysicalDevices(driver->instance, &count, VK_NULL_HANDLE)))
                 error_fatal("Failed to enumerate physical device list count", err);
-
-        printf("Enumerate vulkan physical device count: %u\n", count);
 
         std::vector<VkPhysicalDevice> devices(count);
         if ((err = vkEnumeratePhysicalDevices(driver->instance, &count, std::data(devices))))
@@ -1030,7 +1026,7 @@ VrnkDriver *vrak_driver_initialize()
         return driver;
 }
 
-void vrak_driver_destroy(VrnkDriver *driver)
+void vrak_driver_destroy(VrnDriver *driver)
 {
         vkDeviceWaitIdle(driver->device);
         vmaDestroyAllocator(driver->allocator);
@@ -1046,13 +1042,13 @@ void vrak_driver_destroy(VrnkDriver *driver)
 }
 
 #ifdef USE_GLFW
-VkResult swapchain_create(const VrnkDriver *driver, VrnkSwapchainEXT *p_swapchain, VrnkSwapchainEXT exist = VK_NULL_HANDLE)
+VkResult swapchain_create(const VrnDriver *driver, VrnSwapchainEXT *p_swapchain, VrnSwapchainEXT exist = VK_NULL_HANDLE)
 {
         VkResult err;
-        VrnkSwapchainEXT tmp = VK_NULL_HANDLE;
+        VrnSwapchainEXT tmp = VK_NULL_HANDLE;
         std::vector<VkImage> images;
 
-        tmp = memnew<VrnkSwapchainEXT_T>();
+        tmp = memnew<VrnSwapchainEXT_T>();
         
         /* use cleanup to clear resource when some error. */
         auto swapchain_cleanup = [&](VkResult err) {
@@ -1134,7 +1130,7 @@ VkResult swapchain_create(const VrnkDriver *driver, VrnkSwapchainEXT *p_swapchai
         return err;
 }
 
-void swapchain_resize_check(const VrnkDriver *driver, VrnkSwapchainEXT *p_swapchain)
+void swapchain_resize_check(const VrnDriver *driver, VrnSwapchainEXT *p_swapchain)
 {
         VkSurfaceCapabilitiesKHR capabilities;
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &capabilities);
@@ -1142,14 +1138,14 @@ void swapchain_resize_check(const VrnkDriver *driver, VrnkSwapchainEXT *p_swapch
         VkExtent2D extent = capabilities.currentExtent;
         if ((extent.width != 0 || extent.height != 0) && ((*p_swapchain)->width != extent.width || (*p_swapchain)->height != extent.height)) {
                 vkDeviceWaitIdle(driver->device);
-                VrnkSwapchainEXT tmp = VK_NULL_HANDLE;
+                VrnSwapchainEXT tmp = VK_NULL_HANDLE;
                 swapchain_create(driver, &tmp, (*p_swapchain));
                 swapchain_destroy(driver, (*p_swapchain));
                 *p_swapchain = tmp;
         }
 }
 
-void swapchain_destroy(const VrnkDriver *driver, VrnkSwapchainEXT swapchain)
+void swapchain_destroy(const VrnDriver *driver, VrnSwapchainEXT swapchain)
 {
         if (swapchain == VK_NULL_HANDLE)
                 return;
@@ -1204,18 +1200,18 @@ int main()
         GLFWwindow* window = VK_NULL_HANDLE;
 #endif /* USE_GLFW */
 
-        VrnkDriver *driver = VK_NULL_HANDLE;
+        VrnDriver *driver = VK_NULL_HANDLE;
 
 #ifdef USE_GLFW
-        VrnkSwapchainEXT swapchain = VK_NULL_HANDLE;
+        VrnSwapchainEXT swapchain = VK_NULL_HANDLE;
 #endif /* USE_GLFW */
 
-        VrnkBuffer vertex_buffer = VK_NULL_HANDLE;
+        VrnBuffer vertex_buffer = VK_NULL_HANDLE;
         VkCommandBuffer command_buffer_ring = VK_NULL_HANDLE;
-        VrnkPipeline pipeline = VK_NULL_HANDLE;
+        VrnPipeline pipeline = VK_NULL_HANDLE;
 
 #ifndef USE_GLFW
-        VrnkTexture2D texture = VK_NULL_HANDLE;
+        VrnTexture2D texture = VK_NULL_HANDLE;
 #endif /* USE_GLFW */
 
 #ifdef USE_GLFW
@@ -1247,7 +1243,6 @@ int main()
         if ((err = texture2d_create(driver, 800, 600, &texture)))
                 error_fatal("Failed to create texture 2d", err);
 #endif /* USE_GLFW */
-
 
         glm::mat4 model(1.0f);
         glm::mat4 view(1.0f);
@@ -1297,7 +1292,7 @@ int main()
 
 #ifndef USE_GLFW
                 queue_wait_idle(driver);
-                VrnkBuffer copy_buffer;
+                VrnBuffer copy_buffer;
                 uint32_t copy_size = texture->width * texture->height * 4;
 
                 if ((err = buffer_create(driver, copy_size, &copy_buffer,
