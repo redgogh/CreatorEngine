@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(LIBRARY_DIRECTORIES ${PROJECT_SOURCE_DIR}/lib)
 
-include_directories(SYSTEM include ${LIBRARY_DIRECTORIES})
+include_directories(SYSTEM include ${LIBRARY_DIRECTORIES} ${LIBRARY_DIRECTORIES}/imgui)
 
 include_directories(
   ${PROJECT_SOURCE_DIR}
@@ -13,6 +13,10 @@ include_directories(
 
 file(GLOB ENGINE_MODULE_SOURCES
   ${PROJECT_SOURCE_DIR}/*.cpp
+  # -- ImGui --
+  ${LIBRARY_DIRECTORIES}/imgui/*.cpp
+  ${LIBRARY_DIRECTORIES}/imgui/backends/imgui_impl_glfw.cpp
+  ${LIBRARY_DIRECTORIES}/imgui/backends/imgui_impl_vulkan.cpp
 )
 
 set(GLFW_LIBRARY_DIRECTORY ${LIBRARY_DIRECTORIES}/GLFW/lib-mingw-w64)

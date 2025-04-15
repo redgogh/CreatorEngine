@@ -30,11 +30,13 @@
 #endif /* USE_VOLK */
 
 #define VMA_IMPLEMENTATION
-
 #include <vma/vk_mem_alloc.h>
 
 #ifdef USE_GLFW
 #include <glfw/glfw3.h>
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_vulkan.h>
 #endif /* USE_GLFW */
 
 #include <glm/glm.hpp>
@@ -42,7 +44,6 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-
 #include <stb/stb_image_write.h>
 
 #include "utils/ioutils.h"
@@ -138,9 +139,7 @@ static Vertex vertices[] = {
 };
 
 void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
-
 void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
-
 void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture);
 
 void vrc_printf_device_limits(const VkPhysicalDevice &device)
@@ -950,10 +949,8 @@ VkResult vrc_queue_wait_idle(const VrcDriver *driver)
 }
 
 #ifdef USE_GLFW
-
 VrcDriver *vrc_driver_init(GLFWwindow *window)
 #else
-
 VrcDriver *vrc_driver_init()
 #endif /* USE_GLFW */
 {
@@ -1113,12 +1110,23 @@ VrcDriver *vrc_driver_init()
         vrc_error_fatal("Failed to create VMA allocator", err);
 
     VkDescriptorPoolSize descriptorPoolSizes[] = {
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256},
+        { VK_DESCRIPTOR_TYPE_SAMPLER, 1024 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1024 },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1024 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1024 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1024 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1024 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1024 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1024 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1024 },
+        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1024 }
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = 512,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = 1024 * std::size(descriptorPoolSizes),
         .poolSizeCount = std::size(descriptorPoolSizes),
         .pPoolSizes = std::data(descriptorPoolSizes),
     };
@@ -1146,6 +1154,56 @@ void vrc_driver_destroy(VrcDriver *driver)
     memdel(driver);
 }
 
+void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapchainEXT swapchain)
+{
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+    
+    ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.Instance = driver->instance;
+    init_info.PhysicalDevice = driver->gpu;
+    init_info.Device = driver->device;
+    init_info.QueueFamily = driver->queue_index;
+    init_info.Queue = driver->queue;
+    init_info.PipelineCache = VK_NULL_HANDLE;
+    init_info.DescriptorPool = driver->descriptor_pool;
+    init_info.RenderPass = nullptr;
+    init_info.MinImageCount = swapchain->min_image_count;
+    init_info.ImageCount = swapchain->min_image_count;
+    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.UseDynamicRendering = true;
+    init_info.PipelineRenderingCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &swapchain->format,
+    };
+
+    ImGui_ImplVulkan_Init(&init_info);
+}
+    
+void vrc_imgui_terminate()
+{
+    ImGui_ImplGlfw_Shutdown();
+    ImGui_ImplVulkan_Shutdown();
+}
+    
+void vrc_imgui_begin_rendering(VkCommandBuffer U_ASSERT_ONLY command_buffer)
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void vrc_imgui_end_rendering(VkCommandBuffer command_buffer)
+{
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
+}
+    
 #ifdef USE_GLFW
 VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
 {
@@ -1157,7 +1215,7 @@ VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapch
 
     if (!tmp)
         return VK_ERROR_INITIALIZATION_FAILED;
-
+    
     /* use cleanup to clear resource when some error. */
     auto vrc_swapchain_cleanup = [&](VkResult err) {
         vrc_swapchain_destroy(driver, tmp);
@@ -1328,6 +1386,7 @@ int main()
     window = glfwCreateWindow(800, 600, "Vronk Cube", nullptr, nullptr);
     driver = vrc_driver_init(window);
     vrc_swapchain_create(driver, &swapchain);
+    vrc_imgui_init(driver, window, swapchain);
 #else
     driver = vrc_driver_init();
 
@@ -1373,6 +1432,15 @@ int main()
         VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
         vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
         float aspect = (float) swapchain->width / (float) swapchain->height;
+        
+        vrc_imgui_begin_rendering(command_buffer_ring);
+        bool show_demo_window = true;
+        ImGui::ShowDemoWindow(&show_demo_window);
+        
+        ImGui::Begin("AA");
+        ImGui::End();
+        
+        vrc_imgui_end_rendering(command_buffer_ring);
 #else
         float aspect = 800 / 600;
         vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
@@ -1442,6 +1510,7 @@ int main()
     vrc_buffer_destroy(driver, vertex_buffer);
 
 #ifdef USE_GLFW
+    vrc_imgui_terminate();
     vrc_swapchain_destroy(driver, swapchain);
 #endif /* USE_GLFW */
 
