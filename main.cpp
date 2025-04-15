@@ -20,7 +20,6 @@
 #include <vronk/typedef.h>
 
 #define USE_VOLK
-#define USE_GLFW
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
@@ -184,8 +183,6 @@ VkPhysicalDevice vrc_pick_discrete_device(const std::vector<VkPhysicalDevice> &d
     return devices[0];
 }
 
-#ifdef USE_GLFW
-
 VkResult vrc_pick_surface_format(const VrcDriver *driver, VkSurfaceFormatKHR *p_format)
 {
     VkResult err;
@@ -221,8 +218,6 @@ VkResult vrc_pick_surface_format(const VrcDriver *driver, VkSurfaceFormatKHR *p_
     return VK_SUCCESS;
 }
 
-#endif /* USE_GLFW */
-
 void vrc_find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
 {
     uint32_t count;
@@ -233,13 +228,9 @@ void vrc_find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_
 
     for (uint32_t i = 0; i < count; i++) {
         VkQueueFamilyProperties property = properties[i];
-#ifdef USE_GLFW
         VkBool32 supported = VK_FALSE;
         vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
         if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supported) {
-#else
-            if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
-#endif /* USE_GLFW */
             *p_index = i;
             return;
         }
@@ -978,11 +969,7 @@ VkResult vrc_queue_wait_idle(const VrcDriver *driver)
     return vkQueueWaitIdle(driver->queue);
 }
 
-#ifdef USE_GLFW
 VrcDriver *vrc_driver_init(GLFWwindow *window)
-#else
-VrcDriver *vrc_driver_init()
-#endif /* USE_GLFW */
 {
     VkResult err;
     uint32_t count;
@@ -993,14 +980,12 @@ VrcDriver *vrc_driver_init()
         vrc_error_fatal("Failed to initialize driver struct, cause: memory allocate failed",
                         VK_ERROR_INITIALIZATION_FAILED);
 
-#ifdef USE_VOLK
     /*
      * initialize volk loader to dynamic load about instance function
      * api pointer.
      */
     if ((err = volkInitialize()))
         vrc_error_fatal("Failed to initialize volk loader", err);
-#endif /* USE_VOLK */
 
     if ((err = vkEnumerateInstanceVersion(&driver->version)))
         vrc_error_fatal("Can't not get instance version", err);
@@ -1021,11 +1006,9 @@ VrcDriver *vrc_driver_init()
 
     std::vector<const char *> extensions;
 
-#ifdef USE_GLFW
     const char **required = glfwGetRequiredInstanceExtensions(&count);
     for (int i = 0; i < count; ++i)
         extensions.push_back(required[i]);
-#endif /* USE_GLFW */
 
     std::vector<const char *> layers = {
         "VK_LAYER_KHRONOS_validation"
@@ -1036,11 +1019,8 @@ VrcDriver *vrc_driver_init()
         .pApplicationInfo = &info,
         .enabledLayerCount = (uint32_t) std::size(layers),
         .ppEnabledLayerNames = std::data(layers),
-
-#ifdef USE_GLFW
         .enabledExtensionCount = (uint32_t) std::size(extensions),
         .ppEnabledExtensionNames = std::data(extensions),
-#endif /* USE_GLFW */
 
     };
 
@@ -1060,10 +1040,8 @@ VrcDriver *vrc_driver_init()
 
     driver->gpu = vrc_pick_discrete_device(devices);
 
-#ifdef USE_GLFW
     if ((err = glfwCreateWindowSurface(driver->instance, window, VK_NULL_HANDLE, &driver->surface)))
         vrc_error_fatal("Failed to create surface", err);
-#endif /* USE_GLFW */
 
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(driver->gpu, &properties);
@@ -1073,11 +1051,7 @@ VrcDriver *vrc_driver_init()
 
     float priorities = 1.0f;
 
-#ifdef USE_GLFW
     vrc_find_queue_index(driver->gpu, driver->surface, &driver->queue_index);
-#else
-    vrc_find_queue_index(driver->gpu, VK_NULL_HANDLE, &driver->queue_index);
-#endif /* USE_GLFW */
 
     VkDeviceQueueCreateInfo queue_ci = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -1088,9 +1062,7 @@ VrcDriver *vrc_driver_init()
 
     std::vector<const char *> device_extensions;
 
-#ifdef USE_GLFW
     device_extensions.push_back("VK_KHR_swapchain");
-#endif /* USE_GLFW */
 
     VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT unusedAttachmentsFeature{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT,
@@ -1182,11 +1154,7 @@ void vrc_driver_destroy(VrcDriver *driver)
     vmaDestroyAllocator(driver->allocator);
     vkDestroyCommandPool(driver->device, driver->command_pool, VK_NULL_HANDLE);
     vkDestroyDevice(driver->device, VK_NULL_HANDLE);
-
-#ifdef USE_GLFW
     vkDestroySurfaceKHR(driver->instance, driver->surface, VK_NULL_HANDLE);
-#endif /* USE_GLFW */
-
     vkDestroyInstance(driver->instance, VK_NULL_HANDLE);
     memdel(driver);
 }
@@ -1200,7 +1168,7 @@ void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapch
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
-    
+
     ImGui_ImplVulkan_InitInfo init_info = {};
     init_info.Instance = driver->instance;
     init_info.PhysicalDevice = driver->gpu;
@@ -1265,7 +1233,6 @@ void vrc_imgui_end_viewport()
     ImGui::PopStyleVar();
 }
 
-#ifdef USE_GLFW
 VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
 {
     VkResult err;
@@ -1276,7 +1243,7 @@ VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapch
 
     if (!tmp)
         return VK_ERROR_INITIALIZATION_FAILED;
-    
+
     /* use cleanup to clear resource when some error. */
     auto vrc_swapchain_cleanup = [&](VkResult err) {
         vrc_swapchain_destroy(driver, tmp);
@@ -1404,7 +1371,6 @@ void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain)
     vkDestroySwapchainKHR(driver->device, swapchain->vk_swapchain, VK_NULL_HANDLE);
     memdel(swapchain);
 }
-#endif /* USE_GLFW */
 
 int main()
 {
@@ -1422,38 +1388,21 @@ int main()
     /* copy spir-v shader binary files */
     system("cd ../shaders && shaderc");
 
-
-#ifdef USE_GLFW
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     GLFWwindow *window = VK_NULL_HANDLE;
-#endif /* USE_GLFW */
-
     VrcDriver *driver = VK_NULL_HANDLE;
-
-#ifdef USE_GLFW
     VrcSwapchainEXT swapchain = VK_NULL_HANDLE;
-#endif /* USE_GLFW */
 
     VrcBuffer vertex_buffer = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_ring = VK_NULL_HANDLE;
     VrcPipeline pipeline = VK_NULL_HANDLE;
 
-#ifndef USE_GLFW
-    VrcTexture2D texture = VK_NULL_HANDLE;
-#endif /* USE_GLFW */
-
-#ifdef USE_GLFW
     window = glfwCreateWindow(800, 600, "Vronk Cube", nullptr, nullptr);
     driver = vrc_driver_init(window);
     vrc_swapchain_create(driver, &swapchain);
     vrc_imgui_init(driver, window, swapchain);
-#else
-    driver = vrc_driver_init();
-
-    vrc_command_buffer_alloc(driver, &command_buffer_ring);
-#endif /* USE_GLFW */
 
     // create vertex buffer
     if ((err = vrc_buffer_create(driver, sizeof(vertices), &vertex_buffer,
@@ -1462,18 +1411,10 @@ int main()
 
     vrc_memory_write(driver, vertex_buffer, sizeof(vertices), (void *) vertices);
 
-#ifdef USE_GLFW
     err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
-#else
-    err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
-#endif /* USE_GLFW */
 
-    if (err) vrc_error_fatal("Failed to create graphics pipeline", err);
-
-#ifndef USE_GLFW
-    if ((err = vrc_texture2d_create(driver, 800, 600, &texture)))
-        vrc_error_fatal("Failed to create texture 2d", err);
-#endif /* USE_GLFW */
+    if (err)
+        vrc_error_fatal("Failed to create graphics pipeline", err);
 
     glm::mat4 model(1.0f);
     glm::mat4 view(1.0f);
@@ -1493,7 +1434,6 @@ int main()
     vrc_fence_create(driver, &fence);
     vrc_command_buffer_alloc(driver, &command_buffer_rendering);
 
-#ifdef USE_GLFW
     while (!glfwWindowShouldClose(window)) {
         vrc_swapchain_resize_check(driver, &swapchain);
 
@@ -1568,12 +1508,6 @@ int main()
         command_buffer_ring = swapchain->command_buffers[swapchain->frame];
         VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
         vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
-#else
-        float aspect = 800 / 600;
-        vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
-#endif /* USE_GLFW */
-
-#ifdef USE_GLFW
         vrc_imgui_begin_rendering(command_buffer_ring);
 
         ImGui::ShowDemoWindow();
@@ -1586,56 +1520,16 @@ int main()
         vrc_imgui_end_viewport();
 
         vrc_imgui_end_rendering(command_buffer_ring);
-#endif
-        
         vrc_cmd_end_rendering(command_buffer_ring);
 
-#ifdef USE_GLFW
         vrc_present_submit(driver, command_buffer_ring, swapchain);
 
         vkWaitForFences(driver->device, 1, &(swapchain->fence[swapchain->frame]), VK_TRUE, UINT64_MAX);
         vkResetFences(driver->device, 1, &(swapchain->fence[swapchain->frame]));
         vkResetCommandBuffer(command_buffer_ring, 0);
-#else
-        vrc_queue_submit(driver, command_buffer_ring, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
-#endif /* USE_GLFW */
 
-#ifndef USE_GLFW
-        vrc_queue_wait_idle(driver);
-        VrcBuffer copy_buffer;
-        uint32_t copy_size = texture->width * texture->height * 4;
-    
-        if ((err = vrc_buffer_create(driver, copy_size, &copy_buffer, VK_BUFFER_USAGE_TRANSFER_DST_BIT)))
-            vrc_error_fatal("Failed to create copy_buffer", err);
-    
-        VkCommandBuffer copy_command_buffer;
-        vrc_command_buffer_alloc(driver, &copy_command_buffer);
-    
-        vrc_cmd_begin(copy_command_buffer);
-        vrc_cmd_copy_image(copy_command_buffer, texture, copy_buffer);
-        vrc_cmd_end(copy_command_buffer);
-        vrc_queue_submit(driver, copy_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0);
-        vrc_queue_wait_idle(driver);
-    
-        vrc_command_buffer_free(driver, copy_command_buffer);
-    
-        void *data = malloc(copy_size);
-        vrc_memory_read(driver, copy_buffer, copy_size, data);
-        stbi_write_png("./rendered.png", texture->width, texture->height, 4, data, texture->width * 4);
-        free(data);
-    
-        vrc_buffer_destroy(driver, copy_buffer);
-#endif /* USE_GLFW */
-
-#ifdef USE_GLFW
         glfwPollEvents();
     }
-#endif /* USE_GLFW */
-
-#ifndef USE_GLFW
-    vrc_texture2d_destroy(driver, texture);
-    vrc_command_buffer_free(driver, command_buffer_ring);
-#endif /* USE_GLFW */
 
     // offscreen
     ImGui_ImplVulkan_RemoveTexture(texture_id);
@@ -1644,17 +1538,13 @@ int main()
     vrc_pipeline_destroy(driver, pipeline);
     vrc_buffer_destroy(driver, vertex_buffer);
 
-#ifdef USE_GLFW
     vrc_imgui_terminate();
     vrc_swapchain_destroy(driver, swapchain);
-#endif /* USE_GLFW */
 
     vrc_driver_destroy(driver);
 
-#ifdef USE_GLFW
     glfwDestroyWindow(window);
     glfwTerminate();
-#endif /* USE_GLFW */
 
     return 0;
 }
