@@ -20,7 +20,7 @@
 #include <vronk/typedef.h>
 
 #define USE_VOLK
-// #define USE_GLFW
+#define USE_GLFW
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
@@ -36,7 +36,9 @@
 #include <vma/vk_mem_alloc.h>
 
 #ifdef USE_GLFW
+
 #include <glfw/glfw3.h>
+
 #endif /* USE_GLFW */
 
 #include <glm/glm.hpp>
@@ -124,7 +126,7 @@ typedef struct VrcTexture2D_T {
     uint32_t height = 0;
 } *VrcTexture2D;
 
-struct PushConst {
+struct PushConstValue {
     glm::mat4 mvp;
 };
 
@@ -186,40 +188,42 @@ VkPhysicalDevice vrc_pick_discrete_device(const std::vector<VkPhysicalDevice> &d
 }
 
 #ifdef USE_GLFW
+
 VkResult vrc_pick_surface_format(const VrcDriver *driver, VkSurfaceFormatKHR *p_format)
 {
-        VkResult err;
+    VkResult err;
 
-        uint32_t count;
-        err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, VK_NULL_HANDLE);
-        if (err)
-                return err;
+    uint32_t count;
+    err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, VK_NULL_HANDLE);
+    if (err)
+        return err;
 
-        std::vector<VkSurfaceFormatKHR> formats(count);
-        err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, std::data(formats));
-        if (err)
-                return err;
+    std::vector<VkSurfaceFormatKHR> formats(count);
+    err = vkGetPhysicalDeviceSurfaceFormatsKHR(driver->gpu, driver->surface, &count, std::data(formats));
+    if (err)
+        return err;
 
-        for (const auto &item: formats) {
-                switch(item.format) {
-                        case VK_FORMAT_R8G8B8A8_SRGB:
-                        case VK_FORMAT_B8G8R8A8_SRGB:
-                        case VK_FORMAT_R8G8B8A8_UNORM:
-                        case VK_FORMAT_B8G8R8A8_UNORM: {
-                                *p_format = item;
-                                goto TAG_PICK_SUITABLE_SURFACE_FORMAT_END;
-                        }
-                }
+    for (const auto &item: formats) {
+        switch (item.format) {
+            case VK_FORMAT_R8G8B8A8_SRGB:
+            case VK_FORMAT_B8G8R8A8_SRGB:
+            case VK_FORMAT_R8G8B8A8_UNORM:
+            case VK_FORMAT_B8G8R8A8_UNORM: {
+                *p_format = item;
+                goto TAG_PICK_SUITABLE_SURFACE_FORMAT_END;
+            }
         }
+    }
 
-        assert(count >= 1);
-        *p_format = formats[0];
+    assert(count >= 1);
+    *p_format = formats[0];
 
-        printf("Can't not found suitable surface format, default use first\n");
+    printf("Can't not found suitable surface format, default use first\n");
 
-TAG_PICK_SUITABLE_SURFACE_FORMAT_END:
-        return VK_SUCCESS;
+    TAG_PICK_SUITABLE_SURFACE_FORMAT_END:
+    return VK_SUCCESS;
 }
+
 #endif /* USE_GLFW */
 
 void vrc_find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
@@ -237,7 +241,7 @@ void vrc_find_queue_index(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_
         vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
         if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supported) {
 #else
-        if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+            if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
 #endif /* USE_GLFW */
             *p_index = i;
             return;
@@ -513,7 +517,7 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
         {
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
             .offset = 0,
-            .size = sizeof(PushConst),
+            .size = sizeof(PushConstValue),
         }
     };
 
@@ -950,6 +954,7 @@ VkResult vrc_queue_wait_idle(const VrcDriver *driver)
 }
 
 #ifdef USE_GLFW
+
 VrcDriver *vrc_driver_initialize(GLFWwindow *window)
 #else
 
@@ -996,7 +1001,7 @@ VrcDriver *vrc_driver_initialize()
 #ifdef USE_GLFW
     const char **required = glfwGetRequiredInstanceExtensions(&count);
     for (int i = 0; i < count; ++i)
-            extensions.push_back(required[i]);
+        extensions.push_back(required[i]);
 #endif /* USE_GLFW */
 
     std::vector<const char *> layers = {
@@ -1034,7 +1039,7 @@ VrcDriver *vrc_driver_initialize()
 
 #ifdef USE_GLFW
     if ((err = glfwCreateWindowSurface(driver->instance, window, VK_NULL_HANDLE, &driver->surface)))
-            vrc_error_fatal("Failed to create surface", err);
+        vrc_error_fatal("Failed to create surface", err);
 #endif /* USE_GLFW */
 
     VkPhysicalDeviceProperties properties;
@@ -1146,141 +1151,146 @@ void vrc_driver_destroy(VrcDriver *driver)
 }
 
 #ifdef USE_GLFW
-VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
+
+VkResult
+vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
 {
-        VkResult err;
-        VrcSwapchainEXT tmp = VK_NULL_HANDLE;
-        std::vector<VkImage> images;
+    VkResult err;
+    VrcSwapchainEXT tmp = VK_NULL_HANDLE;
+    std::vector<VkImage> images;
 
-        tmp = memnew<VrcSwapchainEXT_T>();
-        
-        if (!tmp) 
-                return VK_ERROR_INITIALIZATION_FAILED;
-        
-        /* use cleanup to clear resource when some error. */
-        auto vrc_swapchain_cleanup = [&](VkResult err) {
-                vrc_swapchain_destroy(driver, tmp);
-                return err;
-        };
+    tmp = memnew<VrcSwapchainEXT_T>();
 
-        if ((err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &tmp->capabilities)))
-                return vrc_swapchain_cleanup(err);
+    if (!tmp)
+        return VK_ERROR_INITIALIZATION_FAILED;
 
-        uint32_t min = tmp->capabilities.minImageCount;
-        uint32_t max = tmp->capabilities.maxImageCount;
-        tmp->min_image_count = std::clamp(min + 1, min, max);
-
-        tmp->width = tmp->capabilities.currentExtent.width;
-        tmp->height = tmp->capabilities.currentExtent.height;
-
-        *p_swapchain = tmp;
-
-        VkSurfaceFormatKHR surface_format;
-        if ((err = vrc_pick_surface_format(driver, &surface_format)))
-                return vrc_swapchain_cleanup(err);
-
-        tmp->format = surface_format.format;
-        tmp->color_space = surface_format.colorSpace;
-
-        VkSwapchainCreateInfoKHR swapchainCreateInfoKHR = {
-            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .surface = driver->surface,
-            .minImageCount = tmp->min_image_count,
-            .imageFormat = tmp->format,
-            .imageColorSpace = tmp->color_space,
-            .imageExtent = tmp->capabilities.currentExtent,
-            .imageArrayLayers = 1,
-            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-            .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .preTransform = tmp->capabilities.currentTransform,
-            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            .presentMode = VK_PRESENT_MODE_FIFO_KHR,
-            .clipped = VK_TRUE,
-            .oldSwapchain = exist ? exist->vk_swapchain : VK_NULL_HANDLE,
-        };
-
-        if ((err = vkCreateSwapchainKHR(driver->device, &swapchainCreateInfoKHR, VK_NULL_HANDLE, &tmp->vk_swapchain)))
-                return vrc_swapchain_cleanup(err);
-
-        uint32_t count;
-        if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, VK_NULL_HANDLE)))
-                return vrc_swapchain_cleanup(err);
-
-        images.resize(count);
-        if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, std::data(images))))
-                return vrc_swapchain_cleanup(err);
-
-        tmp->resources.resize(tmp->min_image_count);
-        tmp->acquire_index_semaphore.resize(tmp->min_image_count);
-        tmp->render_finish_semaphore.resize(tmp->min_image_count);
-        tmp->fence.resize(tmp->min_image_count);
-        tmp->command_buffers.resize(tmp->min_image_count);
-
-        for (int i = 0; i < tmp->min_image_count; ++i) {
-
-                tmp->resources[i].image = images[i];
-                if ((err = vrc_image_view2d_create(driver, tmp->resources[i].image, tmp->format, &(tmp->resources[i].image_view))))
-                        return vrc_swapchain_cleanup(err);
-
-                if ((err = vrc_semaphore_create(driver, &(tmp->acquire_index_semaphore[i]))))
-                        return vrc_swapchain_cleanup(err);
-
-                if ((err = vrc_semaphore_create(driver, &(tmp->render_finish_semaphore[i]))))
-                        return vrc_swapchain_cleanup(err);
-
-                if ((err = vrc_fence_create(driver, &(tmp->fence[i]))))
-                        return vrc_swapchain_cleanup(err);
-
-                vrc_command_buffer_alloc(driver, &(tmp->command_buffers[i]));
-        }
-
+    /* use cleanup to clear resource when some error. */
+    auto vrc_swapchain_cleanup = [&](VkResult err) {
+        vrc_swapchain_destroy(driver, tmp);
         return err;
+    };
+
+    if ((err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &tmp->capabilities)))
+        return vrc_swapchain_cleanup(err);
+
+    uint32_t min = tmp->capabilities.minImageCount;
+    uint32_t max = tmp->capabilities.maxImageCount;
+    tmp->min_image_count = std::clamp(min + 1, min, max);
+
+    tmp->width = tmp->capabilities.currentExtent.width;
+    tmp->height = tmp->capabilities.currentExtent.height;
+
+    *p_swapchain = tmp;
+
+    VkSurfaceFormatKHR surface_format;
+    if ((err = vrc_pick_surface_format(driver, &surface_format)))
+        return vrc_swapchain_cleanup(err);
+
+    tmp->format = surface_format.format;
+    tmp->color_space = surface_format.colorSpace;
+
+    VkSwapchainCreateInfoKHR swapchainCreateInfoKHR = {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = driver->surface,
+        .minImageCount = tmp->min_image_count,
+        .imageFormat = tmp->format,
+        .imageColorSpace = tmp->color_space,
+        .imageExtent = tmp->capabilities.currentExtent,
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .preTransform = tmp->capabilities.currentTransform,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+        .clipped = VK_TRUE,
+        .oldSwapchain = exist ? exist->vk_swapchain : VK_NULL_HANDLE,
+    };
+
+    if ((err = vkCreateSwapchainKHR(driver->device, &swapchainCreateInfoKHR, VK_NULL_HANDLE, &tmp->vk_swapchain)))
+        return vrc_swapchain_cleanup(err);
+
+    uint32_t count;
+    if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, VK_NULL_HANDLE)))
+        return vrc_swapchain_cleanup(err);
+
+    images.resize(count);
+    if ((err = vkGetSwapchainImagesKHR(driver->device, tmp->vk_swapchain, &count, std::data(images))))
+        return vrc_swapchain_cleanup(err);
+
+    tmp->resources.resize(tmp->min_image_count);
+    tmp->acquire_index_semaphore.resize(tmp->min_image_count);
+    tmp->render_finish_semaphore.resize(tmp->min_image_count);
+    tmp->fence.resize(tmp->min_image_count);
+    tmp->command_buffers.resize(tmp->min_image_count);
+
+    for (int i = 0; i < tmp->min_image_count; ++i) {
+
+        tmp->resources[i].image = images[i];
+        if ((err = vrc_image_view2d_create(driver, tmp->resources[i].image, tmp->format,
+                                           &(tmp->resources[i].image_view))))
+            return vrc_swapchain_cleanup(err);
+
+        if ((err = vrc_semaphore_create(driver, &(tmp->acquire_index_semaphore[i]))))
+            return vrc_swapchain_cleanup(err);
+
+        if ((err = vrc_semaphore_create(driver, &(tmp->render_finish_semaphore[i]))))
+            return vrc_swapchain_cleanup(err);
+
+        if ((err = vrc_fence_create(driver, &(tmp->fence[i]))))
+            return vrc_swapchain_cleanup(err);
+
+        vrc_command_buffer_alloc(driver, &(tmp->command_buffers[i]));
+    }
+
+    return err;
 }
 
 void vrc_swapchain_resize_check(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain)
 {
-        VkSurfaceCapabilitiesKHR capabilities;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &capabilities);
+    VkSurfaceCapabilitiesKHR capabilities;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(driver->gpu, driver->surface, &capabilities);
 
-        VkExtent2D extent = capabilities.currentExtent;
-        if ((extent.width != 0 || extent.height != 0) && ((*p_swapchain)->width != extent.width || (*p_swapchain)->height != extent.height)) {
-                vkDeviceWaitIdle(driver->device);
-                VrcSwapchainEXT tmp = VK_NULL_HANDLE;
-                vrc_swapchain_create(driver, &tmp, (*p_swapchain));
-                vrc_swapchain_destroy(driver, (*p_swapchain));
-                *p_swapchain = tmp;
-        }
+    VkExtent2D extent = capabilities.currentExtent;
+    if ((extent.width != 0 || extent.height != 0) &&
+        ((*p_swapchain)->width != extent.width || (*p_swapchain)->height != extent.height)) {
+        vkDeviceWaitIdle(driver->device);
+        VrcSwapchainEXT tmp = VK_NULL_HANDLE;
+        vrc_swapchain_create(driver, &tmp, (*p_swapchain));
+        vrc_swapchain_destroy(driver, (*p_swapchain));
+        *p_swapchain = tmp;
+    }
 }
 
 void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain)
 {
-        if (swapchain == VK_NULL_HANDLE)
-                return;
+    if (swapchain == VK_NULL_HANDLE)
+        return;
 
-        vkQueueWaitIdle(driver->queue);
+    vkQueueWaitIdle(driver->queue);
 
-        for (int i = 0; i < swapchain->min_image_count; ++i) {
-                auto resource = swapchain->resources[i];
+    for (int i = 0; i < swapchain->min_image_count; ++i) {
+        auto resource = swapchain->resources[i];
 
-                if (resource.image_view != VK_NULL_HANDLE)
-                        vrc_image_view2d_destroy(driver, resource.image_view);
+        if (resource.image_view != VK_NULL_HANDLE)
+            vrc_image_view2d_destroy(driver, resource.image_view);
 
-                if (swapchain->acquire_index_semaphore[i] != VK_NULL_HANDLE)
-                        vrc_semaphore_destroy(driver, swapchain->acquire_index_semaphore[i]);
+        if (swapchain->acquire_index_semaphore[i] != VK_NULL_HANDLE)
+            vrc_semaphore_destroy(driver, swapchain->acquire_index_semaphore[i]);
 
-                if (swapchain->render_finish_semaphore[i] != VK_NULL_HANDLE)
-                        vrc_semaphore_destroy(driver, swapchain->render_finish_semaphore[i]);
+        if (swapchain->render_finish_semaphore[i] != VK_NULL_HANDLE)
+            vrc_semaphore_destroy(driver, swapchain->render_finish_semaphore[i]);
 
-                if (swapchain->fence[i] != VK_NULL_HANDLE)
-                        vrc_fence_destroy(driver, swapchain->fence[i]);
+        if (swapchain->fence[i] != VK_NULL_HANDLE)
+            vrc_fence_destroy(driver, swapchain->fence[i]);
 
-                if (swapchain->command_buffers[i] != VK_NULL_HANDLE)
-                        vrc_command_buffer_free(driver, swapchain->command_buffers[i]);
-        }
+        if (swapchain->command_buffers[i] != VK_NULL_HANDLE)
+            vrc_command_buffer_free(driver, swapchain->command_buffers[i]);
+    }
 
-        vkDestroySwapchainKHR(driver->device, swapchain->vk_swapchain, VK_NULL_HANDLE);
-        memdel(swapchain);
+    vkDestroySwapchainKHR(driver->device, swapchain->vk_swapchain, VK_NULL_HANDLE);
+    memdel(swapchain);
 }
+
 #endif /* USE_GLFW */
 
 int main()
@@ -1304,7 +1314,7 @@ int main()
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-    GLFWwindow* window = VK_NULL_HANDLE;
+    GLFWwindow *window = VK_NULL_HANDLE;
 #endif /* USE_GLFW */
 
     VrcDriver *driver = VK_NULL_HANDLE;
@@ -1361,73 +1371,73 @@ int main()
 
 #ifdef USE_GLFW
     while (!glfwWindowShouldClose(window)) {
-            vrc_swapchain_resize_check(driver, &swapchain);
+        vrc_swapchain_resize_check(driver, &swapchain);
 
-            swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
-            vrc_acquire_next_index(driver, swapchain, &swapchain->acquire_index);
+        swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
+        vrc_acquire_next_index(driver, swapchain, &swapchain->acquire_index);
 
-            command_buffer_ring = swapchain->command_buffers[swapchain->frame];
-            VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
-            vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
-            float aspect = (float) swapchain->width / (float) swapchain->height;
+        command_buffer_ring = swapchain->command_buffers[swapchain->frame];
+        VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
+        vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
+        float aspect = (float) swapchain->width / (float) swapchain->height;
 #else
-    float aspect = 800 / 600;
-    vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
+        float aspect = 800 / 600;
+        vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
 #endif /* USE_GLFW */
 
-    proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
-    proj[1][1] *= -1;
+        proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+        proj[1][1] *= -1;
 
-    PushConst push_const;
-    push_const.mvp = proj * view * model;
+        PushConstValue push_const;
+        push_const.mvp = proj * view * model;
 
-    vrc_cmd_bind_pipeline(command_buffer_ring, pipeline);
-    vrc_cmd_push_constants(command_buffer_ring, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConst),
-                           &push_const);
-    vrc_cmd_bind_vertex_buffer(command_buffer_ring, vertex_buffer);
-    vrc_cmd_draw(command_buffer_ring, sizeof(vertices));
-    vrc_cmd_end_rendering(command_buffer_ring);
+        vrc_cmd_bind_pipeline(command_buffer_ring, pipeline);
+        vrc_cmd_push_constants(command_buffer_ring, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstValue),
+                               &push_const);
+        vrc_cmd_bind_vertex_buffer(command_buffer_ring, vertex_buffer);
+        vrc_cmd_draw(command_buffer_ring, sizeof(vertices));
+        vrc_cmd_end_rendering(command_buffer_ring);
 
 #ifdef USE_GLFW
-    vrc_present_submit(driver, command_buffer_ring, swapchain);
+        vrc_present_submit(driver, command_buffer_ring, swapchain);
 
-    vkWaitForFences(driver->device, 1, &(swapchain->fence[swapchain->frame]), VK_TRUE, UINT64_MAX);
-    vkResetFences(driver->device, 1, &(swapchain->fence[swapchain->frame]));
-    vkResetCommandBuffer(command_buffer_ring, 0);
+        vkWaitForFences(driver->device, 1, &(swapchain->fence[swapchain->frame]), VK_TRUE, UINT64_MAX);
+        vkResetFences(driver->device, 1, &(swapchain->fence[swapchain->frame]));
+        vkResetCommandBuffer(command_buffer_ring, 0);
 #else
-    vrc_queue_submit(driver, command_buffer_ring, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
+        vrc_queue_submit(driver, command_buffer_ring, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
 #endif /* USE_GLFW */
 
 #ifndef USE_GLFW
-    vrc_queue_wait_idle(driver);
-    VrcBuffer copy_buffer;
-    uint32_t copy_size = texture->width * texture->height * 4;
-
-    if ((err = vrc_buffer_create(driver, copy_size, &copy_buffer, VK_BUFFER_USAGE_TRANSFER_DST_BIT)))
-        vrc_error_fatal("Failed to create copy_buffer", err);
-
-    VkCommandBuffer copy_command_buffer;
-    vrc_command_buffer_alloc(driver, &copy_command_buffer);
-
-    vrc_cmd_begin(copy_command_buffer);
-    vrc_cmd_copy_image(copy_command_buffer, texture, copy_buffer);
-    vrc_cmd_end(copy_command_buffer);
-    vrc_queue_submit(driver, copy_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0);
-    vrc_queue_wait_idle(driver);
-
-    vrc_command_buffer_free(driver, copy_command_buffer);
-
-    void *data = malloc(copy_size);
-    vrc_memory_read(driver, copy_buffer, copy_size, data);
-    stbi_write_png("./rendered.png", texture->width, texture->height, 4, data, texture->width * 4);
-    free(data);
-
-    vrc_buffer_destroy(driver, copy_buffer);
+        vrc_queue_wait_idle(driver);
+        VrcBuffer copy_buffer;
+        uint32_t copy_size = texture->width * texture->height * 4;
+    
+        if ((err = vrc_buffer_create(driver, copy_size, &copy_buffer, VK_BUFFER_USAGE_TRANSFER_DST_BIT)))
+            vrc_error_fatal("Failed to create copy_buffer", err);
+    
+        VkCommandBuffer copy_command_buffer;
+        vrc_command_buffer_alloc(driver, &copy_command_buffer);
+    
+        vrc_cmd_begin(copy_command_buffer);
+        vrc_cmd_copy_image(copy_command_buffer, texture, copy_buffer);
+        vrc_cmd_end(copy_command_buffer);
+        vrc_queue_submit(driver, copy_command_buffer, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0);
+        vrc_queue_wait_idle(driver);
+    
+        vrc_command_buffer_free(driver, copy_command_buffer);
+    
+        void *data = malloc(copy_size);
+        vrc_memory_read(driver, copy_buffer, copy_size, data);
+        stbi_write_png("./rendered.png", texture->width, texture->height, 4, data, texture->width * 4);
+        free(data);
+    
+        vrc_buffer_destroy(driver, copy_buffer);
 #endif /* USE_GLFW */
 
 #ifdef USE_GLFW
-    glfwPollEvents();
-}
+        glfwPollEvents();
+    }
 #endif /* USE_GLFW */
 
 #ifndef USE_GLFW
