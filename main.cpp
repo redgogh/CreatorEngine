@@ -1416,9 +1416,7 @@ int main()
     glm::mat4 view(1.0f);
     glm::mat4 proj(1.0f);
 
-    model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0));
-
-    view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));
+    glm::vec3 translation(0.0f);
 
     // offscreen rendering
     VkDescriptorSet texture_id = VK_NULL_HANDLE;
@@ -1472,13 +1470,17 @@ int main()
             texture_id = ImGui_ImplVulkan_AddTexture(texture->sampler, texture->vk_view2d, texture->layout);
         }
 
+        // 计算 MVP 矩阵
+        model = glm::translate(glm::mat4(1.0f), translation);
+        view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));
+
         proj = glm::perspective(glm::radians(45.0f), (float) viewport_window_size.width / viewport_window_size.height, 0.1f, 100.0f);
         proj[1][1] *= -1;
 
         PushConstValue push_const;
         push_const.mvp = proj * view * model;
 
-        // offscreen rendering
+        // 离屏渲染
         vrc_cmd_begin_rendering(command_buffer_rendering, texture->width, texture->height, texture->vk_view2d);
 
         vrc_cmd_bind_pipeline(command_buffer_rendering, pipeline);
@@ -1508,6 +1510,12 @@ int main()
 
         ImGui::ShowDemoWindow();
 
+        // 控制 MVP 矩阵滑动组件
+        ImGui::Begin("MVP");
+        ImGui::DragFloat3("平移", glm::value_ptr(translation), 0.01f);
+        ImGui::End();
+
+        // 渲染 Viewport 展示离屏渲染的图像内容
         vrc_imgui_begin_viewport();
         ImVec2 wsize = ImGui::GetWindowSize();
         viewport_window_size.width = wsize.x;
