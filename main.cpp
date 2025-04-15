@@ -24,9 +24,7 @@
 
 #ifdef USE_VOLK
 #define VOLK_IMPLEMENTATION
-
 #include <volk/volk.h>
-
 #else
 #include <vulkan/vulkan.h>
 #endif /* USE_VOLK */
@@ -36,9 +34,7 @@
 #include <vma/vk_mem_alloc.h>
 
 #ifdef USE_GLFW
-
 #include <glfw/glfw3.h>
-
 #endif /* USE_GLFW */
 
 #include <glm/glm.hpp>
@@ -1151,9 +1147,7 @@ void vrc_driver_destroy(VrcDriver *driver)
 }
 
 #ifdef USE_GLFW
-
-VkResult
-vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
+VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
 {
     VkResult err;
     VrcSwapchainEXT tmp = VK_NULL_HANDLE;
@@ -1290,7 +1284,6 @@ void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain)
     vkDestroySwapchainKHR(driver->device, swapchain->vk_swapchain, VK_NULL_HANDLE);
     memdel(swapchain);
 }
-
 #endif /* USE_GLFW */
 
 int main()
