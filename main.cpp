@@ -165,7 +165,6 @@ void vrc_printf_device_limits(const VkPhysicalDevice &device)
     printf("  |- maxPerStageDescriptorSamplers: %u\n", physicalDeviceProperties.limits.maxPerStageDescriptorSamplers);
     printf("  |- maxDescriptorSetSamplers: %u\n", physicalDeviceProperties.limits.maxDescriptorSetSamplers);
     printf("  |- maxDescriptorSetUniformBuffers: %u\n", physicalDeviceProperties.limits.maxDescriptorSetUniformBuffers);
-    printf("  |- maxDescriptorSetUniformBuffers: %u\n", physicalDeviceProperties.limits.maxDescriptorSetUniformBuffers);
 }
 
 VkPhysicalDevice vrc_pick_discrete_device(const std::vector<VkPhysicalDevice> &devices)
@@ -1203,10 +1202,17 @@ void vrc_imgui_begin_rendering(VkCommandBuffer U_ASSERT_ONLY command_buffer)
 
 void vrc_imgui_end_rendering(VkCommandBuffer command_buffer)
 {
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
     ImGui::Render();
     ImGui::EndFrame();
-    ImGui::UpdatePlatformWindows();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
+
+    // Update and Render additional Platform Windows
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
 }
 
 #ifdef USE_GLFW
