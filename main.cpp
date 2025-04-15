@@ -31,12 +31,10 @@
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
-#ifdef USE_GLFW
 #include <glfw/glfw3.h>
 #include <imgui/imgui.h>
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
-#endif /* USE_GLFW */
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -65,9 +63,7 @@ void vrc_load_obj()
 struct VrcDriver {
     uint32_t version = 0;
     VkInstance instance = VK_NULL_HANDLE;
-#ifdef USE_GLFW
     VkSurfaceKHR surface = VK_NULL_HANDLE;
-#endif /* USE_GLFW */
     VkPhysicalDevice gpu = VK_NULL_HANDLE;
     uint32_t queue_index = 0;
     VkQueue queue = VK_NULL_HANDLE;
