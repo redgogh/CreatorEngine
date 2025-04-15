@@ -1159,6 +1159,7 @@ void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapch
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
@@ -1184,26 +1185,30 @@ void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapch
 
     ImGui_ImplVulkan_Init(&init_info);
 }
-    
+
 void vrc_imgui_terminate()
 {
     ImGui_ImplGlfw_Shutdown();
     ImGui_ImplVulkan_Shutdown();
 }
-    
+
 void vrc_imgui_begin_rendering(VkCommandBuffer U_ASSERT_ONLY command_buffer)
 {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    ImGui::DockSpaceOverViewport(0xFFFF, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 }
 
 void vrc_imgui_end_rendering(VkCommandBuffer command_buffer)
 {
     ImGui::Render();
+    ImGui::EndFrame();
+    ImGui::UpdatePlatformWindows();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
 }
-    
+
 #ifdef USE_GLFW
 VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
 {
@@ -1432,15 +1437,6 @@ int main()
         VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
         vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
         float aspect = (float) swapchain->width / (float) swapchain->height;
-        
-        vrc_imgui_begin_rendering(command_buffer_ring);
-        bool show_demo_window = true;
-        ImGui::ShowDemoWindow(&show_demo_window);
-        
-        ImGui::Begin("AA");
-        ImGui::End();
-        
-        vrc_imgui_end_rendering(command_buffer_ring);
 #else
         float aspect = 800 / 600;
         vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
@@ -1457,6 +1453,13 @@ int main()
                                &push_const);
         vrc_cmd_bind_vertex_buffer(command_buffer_ring, vertex_buffer);
         vrc_cmd_draw(command_buffer_ring, sizeof(vertices));
+
+#ifdef USE_GLFW
+        vrc_imgui_begin_rendering(command_buffer_ring);
+        ImGui::ShowDemoWindow();
+        vrc_imgui_end_rendering(command_buffer_ring);
+#endif
+        
         vrc_cmd_end_rendering(command_buffer_ring);
 
 #ifdef USE_GLFW
