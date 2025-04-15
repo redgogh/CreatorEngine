@@ -955,10 +955,10 @@ VkResult vrc_queue_wait_idle(const VrcDriver *driver)
 
 #ifdef USE_GLFW
 
-VrcDriver *vrc_driver_initialize(GLFWwindow *window)
+VrcDriver *vrc_driver_init(GLFWwindow *window)
 #else
 
-VrcDriver *vrc_driver_initialize()
+VrcDriver *vrc_driver_init()
 #endif /* USE_GLFW */
 {
     VkResult err;
@@ -1333,10 +1333,10 @@ int main()
 
 #ifdef USE_GLFW
     window = glfwCreateWindow(800, 600, "Vronk Cube", nullptr, nullptr);
-    driver = vrc_driver_initialize(window);
+    driver = vrc_driver_init(window);
     vrc_swapchain_create(driver, &swapchain);
 #else
-    driver = vrc_driver_initialize();
+    driver = vrc_driver_init();
 
     vrc_command_buffer_alloc(driver, &command_buffer_ring);
 #endif /* USE_GLFW */
