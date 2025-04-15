@@ -94,6 +94,7 @@ typedef struct VrcSwapchainEXT_T {
     uint32_t height = 0;
     uint32_t acquire_index = 0;
     uint32_t frame = 0;
+    float aspect = 0.0f;
     std::vector<VkSemaphore> acquire_index_semaphore;
     std::vector<VkSemaphore> render_finish_semaphore;
     std::vector<VkFence> fence;
@@ -121,6 +122,8 @@ typedef struct VrcTexture2D_T {
     VkFormat format = VK_FORMAT_UNDEFINED;
     uint32_t width = 0;
     uint32_t height = 0;
+    VkSampler sampler = VK_NULL_HANDLE;
+    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 } *VrcTexture2D;
 
 struct PushConstValue {
@@ -379,6 +382,29 @@ void vrc_image_view2d_destroy(const VrcDriver *driver, VkImageView view)
     vkDestroyImageView(driver->device, view, VK_NULL_HANDLE);
 }
 
+VkResult vrc_sampler_create(const VrcDriver *driver, VkSampler *p_sampler)
+{
+    VkSamplerCreateInfo samplerCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = VK_FILTER_LINEAR,
+        .minFilter = VK_FILTER_LINEAR,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .maxAnisotropy = 16,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+    };
+
+    return vkCreateSampler(driver->device, &samplerCreateInfo, VK_NULL_HANDLE, p_sampler);
+}
+
+void vrc_sampler_destroy(const VrcDriver *driver, VkSampler sampler)
+{
+    vkDestroySampler(driver->device, sampler, VK_NULL_HANDLE);
+}
+
 VkResult vrc_texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, VrcTexture2D *p_texture)
 {
     VkResult err;
@@ -409,7 +435,7 @@ VkResult vrc_texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, V
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
@@ -423,6 +449,9 @@ VkResult vrc_texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, V
         return texture2d_cleanup(err);
 
     if ((err = vrc_image_view2d_create(driver, tmp->vk_image, tmp->format, &tmp->vk_view2d)))
+        return texture2d_cleanup(err);
+
+    if ((err = vrc_sampler_create(driver, &tmp->sampler)))
         return texture2d_cleanup(err);
 
     *p_texture = tmp;
@@ -440,6 +469,9 @@ void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture)
 
     if (texture->vk_image != VK_NULL_HANDLE)
         vmaDestroyImage(driver->allocator, texture->vk_image, texture->allocation);
+
+    if (texture->sampler != VK_NULL_HANDLE)
+        vkDestroySampler(driver->device, texture->sampler, VK_NULL_HANDLE);
 
     memdel(texture);
 }
@@ -788,8 +820,7 @@ void vrc_cmd_begin_rendering(VkCommandBuffer command_buffer, uint32_t w, uint32_
 
     VkRenderingInfo renderingInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-        .renderArea = {.offset = {0, 0},
-            .extent = {w, h}},
+        .renderArea = {.offset = {0, 0}, .extent = {w, h}},
         .layerCount = 1,
         .colorAttachmentCount = 1,
         .pColorAttachments = &renderingAttachmentInfo,
@@ -1061,8 +1092,15 @@ VrcDriver *vrc_driver_init()
     device_extensions.push_back("VK_KHR_swapchain");
 #endif /* USE_GLFW */
 
+    VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT unusedAttachmentsFeature{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT,
+        .pNext = nullptr,
+        .dynamicRenderingUnusedAttachments = VK_TRUE
+    };
+
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
+        .pNext = &unusedAttachmentsFeature,
         .dynamicRendering = VK_TRUE,
     };
 
@@ -1215,6 +1253,18 @@ void vrc_imgui_end_rendering(VkCommandBuffer command_buffer)
     }
 }
 
+void vrc_imgui_begin_viewport()
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::Begin("视口");
+}
+
+void vrc_imgui_end_viewport()
+{
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
 #ifdef USE_GLFW
 VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
 {
@@ -1242,6 +1292,7 @@ VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapch
 
     tmp->width = tmp->capabilities.currentExtent.width;
     tmp->height = tmp->capabilities.currentExtent.height;
+    tmp->aspect = (float) tmp->width / tmp->height;
 
     *p_swapchain = tmp;
 
@@ -1412,7 +1463,7 @@ int main()
     vrc_memory_write(driver, vertex_buffer, sizeof(vertices), (void *) vertices);
 
 #ifdef USE_GLFW
-    err = vrc_pipeline_create(driver, swapchain->format, &pipeline);
+    err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
 #else
     err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
 #endif /* USE_GLFW */
@@ -1432,6 +1483,16 @@ int main()
 
     view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));
 
+    // offscreen rendering
+    VkDescriptorSet texture_id = VK_NULL_HANDLE;
+    VrcTexture2D texture = VK_NULL_HANDLE;
+    VkFence fence = VK_NULL_HANDLE;
+    VkCommandBuffer command_buffer_rendering = VK_NULL_HANDLE;
+    VkExtent2D viewport_window_size = { 32, 32 };
+
+    vrc_fence_create(driver, &fence);
+    vrc_command_buffer_alloc(driver, &command_buffer_rendering);
+
 #ifdef USE_GLFW
     while (!glfwWindowShouldClose(window)) {
         vrc_swapchain_resize_check(driver, &swapchain);
@@ -1439,30 +1500,91 @@ int main()
         swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
         vrc_acquire_next_index(driver, swapchain, &swapchain->acquire_index);
 
-        command_buffer_ring = swapchain->command_buffers[swapchain->frame];
-        VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
-        vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
-        float aspect = (float) swapchain->width / (float) swapchain->height;
-#else
-        float aspect = 800 / 600;
-        vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
-#endif /* USE_GLFW */
+        if (!texture || viewport_window_size.width != texture->width || viewport_window_size.height != texture->height) {
+            if (texture != VK_NULL_HANDLE)
+                vrc_texture2d_destroy(driver, texture);
+            vrc_texture2d_create(driver, viewport_window_size.width, viewport_window_size.height, &texture);
 
-        proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+            VkCommandBuffer command_buffer_barrier;
+            vrc_command_buffer_alloc(driver, &command_buffer_barrier);
+            vrc_cmd_begin_once(command_buffer_barrier);
+            vrc_memory_image_barrier(command_buffer_barrier,
+                                     texture->vk_image,
+                                     VK_ACCESS_NONE,
+                                     VK_ACCESS_SHADER_READ_BIT,
+                                     VK_IMAGE_LAYOUT_UNDEFINED,
+                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+            vrc_cmd_end_once(command_buffer_barrier);
+
+            vrc_queue_submit(driver,
+                             command_buffer_barrier,
+                             0,
+                             VK_NULL_HANDLE,
+                             VK_NULL_HANDLE,
+                             0,
+                             VK_NULL_HANDLE,
+                             fence);
+
+            vkWaitForFences(driver->device, 1, &fence, VK_TRUE, UINT64_MAX);
+            vkResetFences(driver->device, 1, &fence);
+            vrc_command_buffer_free(driver, command_buffer_barrier);
+
+            texture->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            texture_id = ImGui_ImplVulkan_AddTexture(texture->sampler, texture->vk_view2d, texture->layout);
+        }
+
+        proj = glm::perspective(glm::radians(45.0f), (float) viewport_window_size.width / viewport_window_size.height, 0.1f, 100.0f);
         proj[1][1] *= -1;
 
         PushConstValue push_const;
         push_const.mvp = proj * view * model;
 
-        vrc_cmd_bind_pipeline(command_buffer_ring, pipeline);
-        vrc_cmd_push_constants(command_buffer_ring, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstValue),
-                               &push_const);
-        vrc_cmd_bind_vertex_buffer(command_buffer_ring, vertex_buffer);
-        vrc_cmd_draw(command_buffer_ring, sizeof(vertices));
+        // offscreen rendering
+        vrc_cmd_begin_rendering(command_buffer_rendering, texture->width, texture->height, texture->vk_view2d);
+
+        vrc_cmd_bind_pipeline(command_buffer_rendering, pipeline);
+        vrc_cmd_push_constants(command_buffer_rendering, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstValue), &push_const);
+        vrc_cmd_bind_vertex_buffer(command_buffer_rendering, vertex_buffer);
+        vrc_cmd_draw(command_buffer_rendering, sizeof(vertices));
+
+        vrc_cmd_end_rendering(command_buffer_rendering);
+
+        vrc_queue_submit(driver,
+                         command_buffer_rendering,
+                         0,
+                         VK_NULL_HANDLE,
+                         VK_NULL_HANDLE,
+                         0,
+                         VK_NULL_HANDLE,
+                         fence);
+
+        vkWaitForFences(driver->device, 1, &fence, VK_TRUE, UINT64_MAX);
+        vkResetFences(driver->device, 1, &fence);
+        vkResetCommandBuffer(command_buffer_rendering, 0);
+
+        command_buffer_ring = swapchain->command_buffers[swapchain->frame];
+        VkImageView view2d = swapchain->resources[swapchain->acquire_index].image_view;
+        vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
+#else
+        float aspect = 800 / 600;
+        vrc_cmd_begin_rendering(command_buffer_ring, texture->width, texture->height, texture->vk_view2d);
+#endif /* USE_GLFW */
 
 #ifdef USE_GLFW
         vrc_imgui_begin_rendering(command_buffer_ring);
+
         ImGui::ShowDemoWindow();
+
+        vrc_imgui_begin_viewport();
+        ImVec2 wsize = ImGui::GetWindowSize();
+        viewport_window_size.width = wsize.x;
+        viewport_window_size.height = wsize.y;
+        ImGui::Image((ImTextureID) texture_id, { (float) texture->width, (float) texture->height });
+        vrc_imgui_end_viewport();
+
         vrc_imgui_end_rendering(command_buffer_ring);
 #endif
         
@@ -1515,6 +1637,10 @@ int main()
     vrc_command_buffer_free(driver, command_buffer_ring);
 #endif /* USE_GLFW */
 
+    // offscreen
+    ImGui_ImplVulkan_RemoveTexture(texture_id);
+    vrc_texture2d_destroy(driver, texture);
+    vrc_fence_destroy(driver, fence);
     vrc_pipeline_destroy(driver, pipeline);
     vrc_buffer_destroy(driver, vertex_buffer);
 
