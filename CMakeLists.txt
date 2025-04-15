@@ -38,6 +38,12 @@ add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
     ${CMAKE_BINARY_DIR}/shaders/spir-v
 )
 
+add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${PROJECT_SOURCE_DIR}/misc
+    ${CMAKE_BINARY_DIR}/misc
+)
+
 target_link_libraries(${PROJECT_NAME}
   glfw3
 )

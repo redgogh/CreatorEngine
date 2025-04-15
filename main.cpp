@@ -1163,6 +1163,11 @@ void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapch
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark();
 
+    // 设置 ImGui 渲染字体
+    io.Fonts->AddFontFromFileTTF("misc/fonts/Microsoft Yahei UI/Microsoft Yahei UI.ttf", 18.0f,
+                                 nullptr, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+    io.FontDefault = io.Fonts->Fonts.back();
+
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
     ImGui_ImplVulkan_InitInfo init_info = {};
@@ -1417,6 +1422,8 @@ int main()
     glm::mat4 proj(1.0f);
 
     glm::vec3 translation(0.0f);
+    glm::vec3 rotation(1.0f);
+    glm::vec3 scaling(1.0f);
 
     // offscreen rendering
     VkDescriptorSet texture_id = VK_NULL_HANDLE;
@@ -1472,6 +1479,9 @@ int main()
 
         // 计算 MVP 矩阵
         model = glm::translate(glm::mat4(1.0f), translation);
+        model = glm::rotate(model, glm::radians(45.0f), glm::normalize(rotation));
+        model = glm::scale(model, scaling);
+
         view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));
 
         proj = glm::perspective(glm::radians(45.0f), (float) viewport_window_size.width / viewport_window_size.height, 0.1f, 100.0f);
@@ -1512,7 +1522,9 @@ int main()
 
         // 控制 MVP 矩阵滑动组件
         ImGui::Begin("MVP");
-        ImGui::DragFloat3("平移", glm::value_ptr(translation), 0.01f);
+        ImGui::DragFloat3("旋转", glm::value_ptr(rotation), 0.001f);
+        ImGui::DragFloat3("平移", glm::value_ptr(translation), 0.001f);
+        ImGui::DragFloat3("缩放", glm::value_ptr(scaling), 0.001f);
         ImGui::End();
 
         // 渲染 Viewport 展示离屏渲染的图像内容
