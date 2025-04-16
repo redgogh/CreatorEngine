@@ -604,7 +604,7 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
     VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .cullMode = VK_CULL_MODE_NONE,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .lineWidth = 1.0f
     };
@@ -1440,11 +1440,26 @@ int main()
     vrc_fence_create(driver, &fence);
     vrc_command_buffer_alloc(driver, &command_buffer_rendering);
 
+    float speed = 0.5f;
+    float angle = 0.0f;
+    float delta_time = 0.0f;
+    float now_frame_time = 0.0f;
+    float last_frame_time = glfwGetTime();
+
     while (!glfwWindowShouldClose(window)) {
         vrc_swapchain_resize_check(driver, &swapchain);
 
         swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
         vrc_acquire_next_index(driver, swapchain, &swapchain->acquire_index);
+
+        now_frame_time = glfwGetTime();
+        delta_time = now_frame_time - last_frame_time;
+        last_frame_time = now_frame_time;
+
+        angle += delta_time * speed;
+
+        if (angle > glm::two_pi<float>())
+            angle -= glm::two_pi<float>();
 
         if (!texture || viewport_window_size.width != texture->width || viewport_window_size.height != texture->height) {
             if (texture != VK_NULL_HANDLE)
@@ -1483,8 +1498,10 @@ int main()
         }
 
         // 计算 MVP 矩阵
+        rotation.y += delta_time * speed;
+
         model = glm::translate(glm::mat4(1.0f), translation);
-        model = glm::rotate(model, glm::radians(45.0f), glm::normalize(rotation));
+        model = glm::rotate(model, angle, glm::normalize(rotation));
         model = glm::scale(model, scaling);
 
         view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));

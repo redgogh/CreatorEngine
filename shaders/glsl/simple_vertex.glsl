@@ -13,6 +13,6 @@ void main()
 {
     gl_Position = upc.mvp * vec4(vertex, 1.0f);
 
-    out_color = color;
+    out_color = (upc.mvp * vec4(color, 1.0f)).xyz;
     
 }
