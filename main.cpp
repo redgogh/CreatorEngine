@@ -1168,6 +1168,9 @@ void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapch
                                  nullptr, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
     io.FontDefault = io.Fonts->Fonts.back();
 
+    // 设置 ImGui 布局配置文件路径
+    io.IniFilename = "../imgui.ini";
+    
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
     ImGui_ImplVulkan_InitInfo init_info = {};
