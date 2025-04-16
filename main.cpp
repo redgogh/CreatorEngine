@@ -1393,7 +1393,9 @@ int main()
     system("cd ../shaders && shaderc");
 
     glfwInit();
+    
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     GLFWwindow *window = VK_NULL_HANDLE;
     VrcDriver *driver = VK_NULL_HANDLE;
