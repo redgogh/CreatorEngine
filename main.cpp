@@ -58,16 +58,6 @@ void vrc_error_fatal(const char *msg, VkResult err)
     exit(EXIT_FAILURE);
 }
 
-void vrc_load_obj()
-{
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string warn, err;
-
-    tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "assets/cube.obj");
-}
-
 struct VrcDriver {
     uint32_t version = 0;
     VkInstance instance = VK_NULL_HANDLE;
@@ -135,18 +125,57 @@ struct PushConstValue {
 
 struct Vertex {
     glm::vec3 position;
-    glm::vec3 color;
-};
-
-static Vertex vertices[] = {
-    {{0.0f,  0.5f,  0.0f}, {1.0f, 0.0f, 0.0f}},
-    {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-    {{0.5f,  -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+    glm::vec2 uv;
+    glm::vec3 normal;
 };
 
 void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
 void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
 void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture);
+
+std::vector<Vertex> vrc_load_obj(const char *path)
+{
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::vector<Vertex> result;
+
+    std::string warn, err;
+
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path)) {
+        if (!warn.empty())
+            printf("Wran: %s\n", warn.c_str());
+        if (!err.empty())
+            printf("Error: %s\n", err.c_str());
+        vrc_error_fatal("Failed to load obj", VK_ERROR_INITIALIZATION_FAILED);
+    }
+
+    for (const auto& shape : shapes) {
+        size_t index_offset = 0;
+        for (const auto& face : shape.mesh.num_face_vertices) {
+            for (size_t v = 0; v < face; ++v) {
+                auto idx = shape.mesh.indices[index_offset + v];
+                float vx = attrib.vertices[3 * idx.vertex_index + 0];
+                float vy = attrib.vertices[3 * idx.vertex_index + 1];
+                float vz = attrib.vertices[3 * idx.vertex_index + 2];
+
+                float tx = idx.texcoord_index >= 0 ? attrib.texcoords[2 * idx.texcoord_index + 0] : 0.0f;
+                float ty = idx.texcoord_index >= 0 ? attrib.texcoords[2 * idx.texcoord_index + 1] : 0.0f;
+
+                float nx = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 0] : 0.0f;
+                float ny = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 1] : 0.0f;
+                float nz = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 2] : 0.0f;
+
+                result.emplace_back(glm::vec3(vx, vy, vz),
+                                    glm::vec2(tx, ty),
+                                    glm::vec3(nx, ny, nz));
+            }
+            index_offset += face;
+        }
+    }
+
+    return result;
+}
 
 void vrc_printf_device_limits(const VkPhysicalDevice &device)
 {
@@ -585,9 +614,15 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
         {
             .location = 1,
             .binding = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(Vertex, uv)
+        },
+        {
+            .location = 2,
+            .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(Vertex, color)
-        }
+            .offset = offsetof(Vertex, normal)
+        },
     };
 
     VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = {
@@ -612,7 +647,7 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
     VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_NONE,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .lineWidth = 1.0f
     };
@@ -1420,11 +1455,13 @@ int main()
     vrc_imgui_init(driver, window, swapchain);
 
     // create vertex buffer
-    if ((err = vrc_buffer_create(driver, sizeof(vertices), &vertex_buffer,
+    std::vector<Vertex> vertices = vrc_load_obj("assets/cube.obj");
+    VkDeviceSize vertices_buffer_size = std::size(vertices) * sizeof(Vertex);
+    if ((err = vrc_buffer_create(driver, vertices_buffer_size, &vertex_buffer,
                                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT)))
         vrc_error_fatal("Failed to create vertex buffer", err);
 
-    vrc_memory_write(driver, vertex_buffer, sizeof(vertices), (void *) vertices);
+    vrc_memory_write(driver, vertex_buffer, vertices_buffer_size, (void *) std::data(vertices));
 
     err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
 
@@ -1437,7 +1474,7 @@ int main()
 
     glm::vec3 translation(0.0f);
     glm::vec3 rotation(1.0f);
-    glm::vec3 scaling(1.0f);
+    glm::vec3 scaling(0.5f);
 
     // offscreen rendering
     VkDescriptorSet texture_id = VK_NULL_HANDLE;
@@ -1527,7 +1564,7 @@ int main()
         vrc_cmd_bind_pipeline(command_buffer_rendering, pipeline);
         vrc_cmd_push_constants(command_buffer_rendering, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstValue), &push_const);
         vrc_cmd_bind_vertex_buffer(command_buffer_rendering, vertex_buffer);
-        vrc_cmd_draw(command_buffer_rendering, sizeof(vertices));
+        vrc_cmd_draw(command_buffer_rendering, std::size(vertices));
 
         vrc_cmd_end_rendering(command_buffer_rendering);
 
