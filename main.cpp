@@ -43,6 +43,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader/tiny_obj_loader.h>
+
 #include "utils/ioutils.h"
 
 // std
@@ -57,7 +60,12 @@ void vrc_error_fatal(const char *msg, VkResult err)
 
 void vrc_load_obj()
 {
-    /* TODO Implementation load obj model */
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "assets/cube.obj");
 }
 
 struct VrcDriver {
@@ -1389,8 +1397,9 @@ int main()
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-    /* copy spir-v shader binary files */
-    system("cd ../shaders && shaderc");
+    /* copy spir-v shader and other files */
+    system("cd ../scripts && shaderc");
+    system("cd ../scripts && astcopy");
 
     glfwInit();
     

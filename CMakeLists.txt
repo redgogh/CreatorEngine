@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(veronica)
+project(vrc)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -31,18 +31,6 @@ link_directories(
 )
 
 add_executable(${PROJECT_NAME} ${ENGINE_MODULE_SOURCES})
-
-add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${PROJECT_SOURCE_DIR}/shaders/spir-v
-    ${CMAKE_BINARY_DIR}/shaders/spir-v
-)
-
-add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${PROJECT_SOURCE_DIR}/misc
-    ${CMAKE_BINARY_DIR}/misc
-)
 
 target_link_libraries(${PROJECT_NAME}
   glfw3

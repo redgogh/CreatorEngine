@@ -17,7 +17,9 @@
 @REM  ======================================================================== ::
 @echo off
 
-glslc -fshader-stage=vert ./glsl/simple_vertex.glsl -o ./spir-v/simple_vertex.spv
-glslc -fshader-stage=frag ./glsl/simple_fragment.glsl -o ./spir-v/simple_fragment.spv
+set root=../
 
-robocopy ./spir-v ../cmake-build-debug/shaders/spir-v /e /copyall /r:0 /w:0 >nul
+glslc -fshader-stage=vert %root%/shaders/glsl/simple_vertex.glsl -o %root%/shaders/spir-v/simple_vertex.spv
+glslc -fshader-stage=frag %root%/shaders/glsl/simple_fragment.glsl -o %root%/shaders/spir-v/simple_fragment.spv
+
+robocopy %root%/shaders/spir-v %root%/cmake-build-debug/shaders/spir-v /e /copyall /r:0 /w:0 >nul
