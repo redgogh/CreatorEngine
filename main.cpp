@@ -1405,7 +1405,7 @@ int main()
     VkCommandBuffer command_buffer_ring = VK_NULL_HANDLE;
     VrcPipeline pipeline = VK_NULL_HANDLE;
 
-    window = glfwCreateWindow(800, 600, "Vronk Cube", nullptr, nullptr);
+    window = glfwCreateWindow(1920, 1080, "VeronicaEngine", nullptr, nullptr);
     driver = vrc_driver_init(window);
     vrc_swapchain_create(driver, &swapchain);
     vrc_imgui_init(driver, window, swapchain);
@@ -1552,7 +1552,7 @@ int main()
         glfwPollEvents();
     }
 
-    // offscreen
+    // 离屏渲染对象销毁
     ImGui_ImplVulkan_RemoveTexture(texture_id);
     vrc_texture2d_destroy(driver, texture);
     vrc_fence_destroy(driver, fence);
