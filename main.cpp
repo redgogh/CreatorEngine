@@ -51,6 +51,7 @@
 // std
 #include <vector>
 #include <algorithm>
+#include <unordered_map>
 
 void vrc_error_fatal(const char *msg, VkResult err)
 {
@@ -123,22 +124,41 @@ struct PushConstValue {
     glm::mat4 mvp;
 };
 
-struct Vertex {
+struct vertex_t {
     glm::vec3 position;
-    glm::vec2 uv;
+    glm::vec2 texcoord;
     glm::vec3 normal;
+    
+    bool operator==(const vertex_t & other) const {
+        return this->position == other.position && this->texcoord == other.texcoord && this->normal == other.normal;
+    }
 };
+
+namespace std {
+    template <> struct hash<vertex_t> {
+        size_t operator()(const vertex_t & vertex) const {
+            std::size_t h1 = std::hash<float>{}(vertex.position.x);
+            std::size_t h2 = std::hash<float>{}(vertex.position.y);
+            std::size_t h3 = std::hash<float>{}(vertex.position.z);
+            std::size_t h4 = std::hash<float>{}(vertex.texcoord.x);
+            std::size_t h5 = std::hash<float>{}(vertex.texcoord.y);
+            std::size_t h6 = std::hash<float>{}(vertex.normal.x);
+            std::size_t h7 = std::hash<float>{}(vertex.normal.y);
+            std::size_t h8 = std::hash<float>{}(vertex.normal.z);
+            return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h5 << 4) ^ (h6 << 5) ^ (h7 << 6) ^ (h8 << 7);
+        }
+    };
+}
 
 void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
 void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
 void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture);
 
-std::vector<Vertex> vrc_load_obj(const char *path)
+void vrc_load_obj_model(const char *path, std::vector<vertex_t>& vertices, std::vector<uint32_t>& indices)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
-    std::vector<Vertex> result;
 
     std::string warn, err;
 
@@ -150,29 +170,38 @@ std::vector<Vertex> vrc_load_obj(const char *path)
         vrc_error_fatal("Failed to load obj", VK_ERROR_INITIALIZATION_FAILED);
     }
 
+    std::unordered_map<vertex_t, uint32_t> unique_map;
+    
     for (const auto& shape : shapes) {
-        size_t index_offset = 0;
-        for (const auto& face : shape.mesh.num_face_vertices) {
-            for (size_t v = 0; v < face; ++v) {
-                auto idx = shape.mesh.indices[index_offset + v];
-                float vx = attrib.vertices[3 * idx.vertex_index + 0];
-                float vy = attrib.vertices[3 * idx.vertex_index + 1];
-                float vz = attrib.vertices[3 * idx.vertex_index + 2];
-
-                float tx = idx.texcoord_index >= 0 ? attrib.texcoords[2 * idx.texcoord_index + 0] : 0.0f;
-                float ty = idx.texcoord_index >= 0 ? attrib.texcoords[2 * idx.texcoord_index + 1] : 0.0f;
-
-                float nx = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 0] : 0.0f;
-                float ny = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 1] : 0.0f;
-                float nz = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 2] : 0.0f;
-
-                result.emplace_back(glm::vec3(vx, vy, vz), glm::vec2(tx, ty), glm::vec3(nx, ny, nz));
+        for (const auto& idx : shape.mesh.indices) {
+            vertex_t vertex = {};
+            
+            if (idx.vertex_index >= 0) {
+                vertex.position[0] = attrib.vertices[3 * idx.vertex_index + 0];
+                vertex.position[1] = attrib.vertices[3 * idx.vertex_index + 1];
+                vertex.position[2] = attrib.vertices[3 * idx.vertex_index + 2];
             }
-            index_offset += face;
+            
+            if (idx.texcoord_index >= 0) {
+                vertex.texcoord[0] = attrib.texcoords[2 * idx.texcoord_index + 0];
+                vertex.texcoord[1] = attrib.texcoords[2 * idx.texcoord_index + 1];
+            }
+            
+            if (idx.normal_index >= 0) {
+                vertex.normal[0] = attrib.normals[3 * idx.normal_index + 0];
+                vertex.normal[1] = attrib.normals[3 * idx.normal_index + 1];
+                vertex.normal[2] = attrib.normals[3 * idx.normal_index + 2];
+            }
+            
+            if (unique_map.count(vertex) == 0) {
+                unique_map[vertex] = static_cast<uint32_t>(std::size(vertices));
+                vertices.push_back(vertex);
+            }
+            
+            indices.push_back(unique_map[vertex]);
         }
     }
-
-    return result;
+    
 }
 
 void vrc_printf_device_limits(const VkPhysicalDevice &device)
@@ -364,8 +393,7 @@ VkResult vrc_buffer_create(const VrcDriver *driver, VkDeviceSize size, VrcBuffer
     tmp->size = size;
     *p_buffer = tmp;
 
-    return vmaCreateBuffer(driver->allocator, &buffer_ci, &allocation_info, &tmp->vk_buffer, &tmp->allocation,
-                           &tmp->allocation_info);
+    return vmaCreateBuffer(driver->allocator, &buffer_ci, &allocation_info, &tmp->vk_buffer, &tmp->allocation, &tmp->allocation_info);
 }
 
 void vrc_buffer_destroy(VrcDriver *driver, VrcBuffer buffer)
@@ -597,7 +625,7 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
     VkVertexInputBindingDescription vertexInputBindingDescriptions[] = {
         {
             .binding = 0,
-            .stride = sizeof(Vertex),
+            .stride = sizeof(vertex_t),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
         }
     };
@@ -607,19 +635,19 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
             .location = 0,
             .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(Vertex, position)
+            .offset = offsetof(vertex_t, position)
         },
         {
             .location = 1,
             .binding = 0,
             .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = offsetof(Vertex, uv)
+            .offset = offsetof(vertex_t, texcoord)
         },
         {
             .location = 2,
             .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(Vertex, normal)
+            .offset = offsetof(vertex_t, normal)
         },
     };
 
@@ -896,9 +924,19 @@ void vrc_cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VrcBuffer vertex
     vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->vk_buffer, offsets);
 }
 
+void vrc_cmd_bind_index_buffer(VkCommandBuffer command_buffer, VrcBuffer index_buffer)
+{
+    vkCmdBindIndexBuffer(command_buffer, index_buffer->vk_buffer, 0, VK_INDEX_TYPE_UINT32);
+}
+
 void vrc_cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count)
 {
     vkCmdDraw(command_buffer, vertex_count, 1, 0, 0);
+}
+
+void vrc_cmd_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count)
+{
+    vkCmdDrawIndexed(command_buffer, index_count, 1, 0, 0, 0);
 }
 
 uint32_t vrc_cmd_copy_image(VkCommandBuffer command_buffer, VrcTexture2D src, VrcBuffer dst)
@@ -1097,9 +1135,11 @@ VrcDriver *vrc_driver_init(GLFWwindow *window)
         .pQueuePriorities = &priorities,
     };
 
-    std::vector<const char *> device_extensions;
-
-    device_extensions.push_back("VK_KHR_swapchain");
+    std::vector<const char *> device_extensions = {
+        "VK_KHR_swapchain",
+        "VK_KHR_dynamic_rendering",
+        "VK_EXT_dynamic_rendering_unused_attachments"
+    };
 
     VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT unusedAttachmentsFeature{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT,
@@ -1444,6 +1484,7 @@ int main()
     VrcSwapchainEXT swapchain = VK_NULL_HANDLE;
 
     VrcBuffer vertex_buffer = VK_NULL_HANDLE;
+    VrcBuffer index_buffer = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_ring = VK_NULL_HANDLE;
     VrcPipeline pipeline = VK_NULL_HANDLE;
 
@@ -1453,13 +1494,19 @@ int main()
     vrc_imgui_init(driver, window, swapchain);
 
     // create vertex buffer
-    std::vector<Vertex> vertices = vrc_load_obj("assets/cube/cube.obj");
-    VkDeviceSize vertices_buffer_size = std::size(vertices) * sizeof(Vertex);
-    if ((err = vrc_buffer_create(driver, vertices_buffer_size, &vertex_buffer,
-                                 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT)))
+    std::vector<vertex_t> vertices;
+    std::vector<uint32_t> indices;
+    vrc_load_obj_model("assets/cube/cube.obj", vertices, indices);
+    
+    VkDeviceSize vertex_buffer_size = std::size(vertices) * sizeof(vertex_t);
+    if ((err = vrc_buffer_create(driver, vertex_buffer_size, &vertex_buffer, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)))
         vrc_error_fatal("Failed to create vertex buffer", err);
+    vrc_memory_write(driver, vertex_buffer, vertex_buffer_size, (void *) std::data(vertices));
 
-    vrc_memory_write(driver, vertex_buffer, vertices_buffer_size, (void *) std::data(vertices));
+    VkDeviceSize index_buffer_size = std::size(indices) * sizeof(uint32_t);
+    if ((err = vrc_buffer_create(driver, index_buffer_size, &index_buffer, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)))
+        vrc_error_fatal("Failed to create index buffer", err);
+    vrc_memory_write(driver, index_buffer, index_buffer_size, (void *) std::data(indices));
 
     err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
 
@@ -1562,7 +1609,9 @@ int main()
         vrc_cmd_bind_pipeline(command_buffer_rendering, pipeline);
         vrc_cmd_push_constants(command_buffer_rendering, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstValue), &push_const);
         vrc_cmd_bind_vertex_buffer(command_buffer_rendering, vertex_buffer);
-        vrc_cmd_draw(command_buffer_rendering, std::size(vertices));
+        vrc_cmd_bind_index_buffer(command_buffer_rendering, index_buffer);
+        // vrc_cmd_draw(command_buffer_rendering, std::size(vertices));
+        vrc_cmd_draw_indexed(command_buffer_rendering, std::size(indices));
 
         vrc_cmd_end_rendering(command_buffer_rendering);
 
@@ -1619,6 +1668,7 @@ int main()
     vrc_fence_destroy(driver, fence);
     vrc_pipeline_destroy(driver, pipeline);
     vrc_buffer_destroy(driver, vertex_buffer);
+    vrc_buffer_destroy(driver, index_buffer);
 
     vrc_imgui_terminate();
     vrc_swapchain_destroy(driver, swapchain);
