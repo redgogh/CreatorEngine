@@ -166,9 +166,7 @@ std::vector<Vertex> vrc_load_obj(const char *path)
                 float ny = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 1] : 0.0f;
                 float nz = idx.normal_index >= 0 ? attrib.normals[3 * idx.normal_index + 2] : 0.0f;
 
-                result.emplace_back(glm::vec3(vx, vy, vz),
-                                    glm::vec2(tx, ty),
-                                    glm::vec3(nx, ny, nz));
+                result.emplace_back(glm::vec3(vx, vy, vz), glm::vec2(tx, ty), glm::vec3(nx, ny, nz));
             }
             index_offset += face;
         }
@@ -648,7 +646,7 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .lineWidth = 1.0f
     };
 
