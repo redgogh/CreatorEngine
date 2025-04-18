@@ -43,6 +43,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader/tiny_obj_loader.h>
 
@@ -105,6 +108,8 @@ typedef struct VrcBuffer_T {
 typedef struct VrcPipeline_T {
     VkPipeline vk_pipeline = VK_NULL_HANDLE;
     VkPipelineLayout vk_pipeline_layout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout vk_descriptor_set_layout = VK_NULL_HANDLE;
+    VkDescriptorSet vk_descriptor_set = VK_NULL_HANDLE;
     VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 } *VrcPipeline;
 
@@ -153,7 +158,25 @@ namespace std {
 void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
 void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
 void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture);
-
+void vrc_cmd_begin_once(VkCommandBuffer command_buffer);
+void vrc_cmd_end_once(VkCommandBuffer command_buffer);
+VkResult vrc_queue_submit(const VrcDriver *driver,
+                          VkCommandBuffer command_buffer,
+                          uint32_t wait_count,
+                          VkSemaphore *p_waits,
+                          VkPipelineStageFlags *p_stage_mask,
+                          uint32_t signal_count,
+                          VkSemaphore *p_signals,
+                          VkFence fence);
+void vrc_memory_image_barrier(VkCommandBuffer command_buffer,
+                              VkImage image,
+                              VkAccessFlags srcAccessMask,
+                              VkAccessFlags dstAccessMask,
+                              VkImageLayout oldLayout,
+                              VkImageLayout newLayout,
+                              VkPipelineStageFlags srcStageMask,
+                              VkPipelineStageFlags dstStageMask);
+                              
 void vrc_load_obj_model(const char *path, std::vector<vertex_t>& vertices, std::vector<uint32_t>& indices)
 {
     tinyobj::attrib_t attrib;
@@ -396,7 +419,7 @@ VkResult vrc_buffer_create(const VrcDriver *driver, VkDeviceSize size, VrcBuffer
     return vmaCreateBuffer(driver->allocator, &buffer_ci, &allocation_info, &tmp->vk_buffer, &tmp->allocation, &tmp->allocation_info);
 }
 
-void vrc_buffer_destroy(VrcDriver *driver, VrcBuffer buffer)
+void vrc_buffer_destroy(const VrcDriver *driver, VrcBuffer buffer)
 {
     vmaDestroyBuffer(driver->allocator, buffer->vk_buffer, buffer->allocation);
     memdel(buffer);
@@ -485,7 +508,7 @@ VkResult vrc_texture2d_create(const VrcDriver *driver, uint32_t w, uint32_t h, V
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
@@ -551,8 +574,7 @@ vrc_descriptor_set_alloc(const VrcDriver *driver, VkDescriptorSetLayout layout, 
     return vkAllocateDescriptorSets(driver->device, &descriptorSetAllocateInfo, p_descriptor_set);
 }
 
-VkResult
-vrc_descriptor_set_free(const VrcDriver *driver, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set)
+VkResult vrc_descriptor_set_free(const VrcDriver *driver, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set)
 {
     return vkFreeDescriptorSets(driver->device, descriptor_pool, 1, &descriptor_set);
 }
@@ -588,6 +610,19 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
 
     if ((err = vrc_load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module)))
         return vrc_pipeline_cleanup(err);
+    
+    VkDescriptorSetLayoutBinding descriptorSetLayoutBinding[] = {
+        { 0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE }
+    };
+    
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = std::size(descriptorSetLayoutBinding),
+        .pBindings = std::data(descriptorSetLayoutBinding),
+    };
+    
+    if ((err = vkCreateDescriptorSetLayout(driver->device, &descriptorSetLayoutCreateInfo, VK_NULL_HANDLE, &tmp->vk_descriptor_set_layout)))
+        return vrc_pipeline_cleanup(err);
 
     VkPushConstantRange pushConstantRanges[] = {
         {
@@ -599,6 +634,8 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &tmp->vk_descriptor_set_layout,
         .pushConstantRangeCount = std::size(pushConstantRanges),
         .pPushConstantRanges = std::data(pushConstantRanges),
     };
@@ -774,6 +811,67 @@ void vrc_memory_write(const VrcDriver *driver, VrcBuffer buffer, size_t size, vo
     vmaMapMemory(driver->allocator, buffer->allocation, &dst);
     memcpy(dst, src, size);
     vmaUnmapMemory(driver->allocator, buffer->allocation);
+}
+
+VkResult vrc_memory_write(const VrcDriver* driver, VrcTexture2D texture, size_t size, void* data)
+{
+    VkResult err;
+    VrcBuffer tmp;
+
+    vrc_buffer_create(driver, size, &tmp, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    
+    vrc_memory_write(driver, tmp, size, data);
+    
+    VkCommandBuffer command_buffer;
+    vrc_command_buffer_alloc(driver, &command_buffer);
+    vrc_cmd_begin_once(command_buffer);
+
+    vrc_memory_image_barrier(command_buffer,
+                             texture->vk_image,
+                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                             VK_ACCESS_TRANSFER_READ_BIT,
+                             VK_IMAGE_LAYOUT_UNDEFINED,
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT);
+    
+    VkBufferImageCopy region = {
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        },
+        .imageOffset = {0, 0},
+        .imageExtent = {
+            .width = texture->width,
+            .height = texture->height,
+            .depth = 1
+        }
+    };
+    
+    vkCmdCopyBufferToImage(command_buffer,
+                           tmp->vk_buffer,
+                           texture->vk_image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1,
+                           &region);
+    
+    vrc_cmd_end_once(command_buffer);
+
+    VkFence fence;
+    vrc_fence_create(driver, &fence);
+    vrc_queue_submit(driver, command_buffer, 0, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, fence);
+    vkWaitForFences(driver->device, 1, &fence, VK_TRUE, UINT64_MAX);
+    vrc_fence_destroy(driver, fence);
+
+    vrc_command_buffer_free(driver, command_buffer);
+    vrc_buffer_destroy(driver, tmp);
+    
+    return err;
 }
 
 void vrc_memory_image_barrier(VkCommandBuffer command_buffer,
@@ -1487,13 +1585,14 @@ int main()
     VrcBuffer index_buffer = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_ring = VK_NULL_HANDLE;
     VrcPipeline pipeline = VK_NULL_HANDLE;
+    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
 
     window = glfwCreateWindow(1920, 1080, "VeronicaEngine", nullptr, nullptr);
     driver = vrc_driver_init(window);
     vrc_swapchain_create(driver, &swapchain);
     vrc_imgui_init(driver, window, swapchain);
 
-    // create vertex buffer
+    // 创建 cube vertex buffer 以及 index buffer
     std::vector<vertex_t> vertices;
     std::vector<uint32_t> indices;
     vrc_load_obj_model("assets/cube/cube.obj", vertices, indices);
@@ -1507,7 +1606,22 @@ int main()
     if ((err = vrc_buffer_create(driver, index_buffer_size, &index_buffer, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)))
         vrc_error_fatal("Failed to create index buffer", err);
     vrc_memory_write(driver, index_buffer, index_buffer_size, (void *) std::data(indices));
+    
+    // 加载 cube 贴图
+    int tex_width, tex_height, tex_channels;
+    stbi_uc* pixels = stbi_load("assets/cube/cube_texture.png", &tex_width, &tex_height, &tex_channels, STBI_rgb_alpha);
+    if (!pixels)
+        vrc_error_fatal("Failed to load texture image for cube", VK_ERROR_INITIALIZATION_FAILED);
 
+    VrcTexture2D cube_texture;
+    if ((err = vrc_texture2d_create(driver, tex_width, tex_height, &cube_texture)) != VK_SUCCESS)
+        vrc_error_fatal("Failed to create texture2d for cube texture", err);
+
+    vrc_memory_write(driver, cube_texture, tex_width * tex_height * 4, pixels);
+    
+    stbi_image_free(pixels);
+    
+    // 创建渲染管线
     err = vrc_pipeline_create(driver, VK_FORMAT_R8G8B8A8_SRGB, &pipeline);
 
     if (err)
