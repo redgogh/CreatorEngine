@@ -35,10 +35,13 @@
 #include <imgui/imgui.h>
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
+#include <ImGuizmo/ImGuizmo.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
@@ -747,12 +750,12 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
         .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
     };
 
-    // VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo = {
-    //     .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-    //     .depthTestEnable = VK_TRUE,
-    //     .depthWriteEnable = VK_TRUE,
-    //     .depthCompareOp = VK_COMPARE_OP_LESS,
-    // };
+    VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+    };
 
     VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState = {
         .blendEnable = VK_FALSE,
@@ -795,7 +798,7 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
         .pViewportState = &pipelineViewportStateCreateInfo,
         .pRasterizationState = &pipelineRasterizationStateCreateInfo,
         .pMultisampleState = &pipelineMultisampleStateCreateInfo,
-        // .pDepthStencilState = &pipelineDepthStencilStateCreateInfo,
+        .pDepthStencilState = &pipelineDepthStencilStateCreateInfo,
         .pColorBlendState = &pipelineColorBlendStateCreateInfo,
         .pDynamicState = &dynamicStateCreateInfo,
         .layout = tmp->vk_pipeline_layout,
@@ -1627,7 +1630,6 @@ int main()
     VrcBuffer index_buffer = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_ring = VK_NULL_HANDLE;
     VrcPipeline pipeline = VK_NULL_HANDLE;
-    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
 
     window = glfwCreateWindow(1920, 1080, "VeronicaEngine", nullptr, nullptr);
     driver = vrc_driver_init(window);
@@ -1677,12 +1679,16 @@ int main()
     glm::vec3 rotation(0.0f);
     glm::vec3 scaling(0.5f);
 
+    ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
+
     // offscreen rendering
     VkDescriptorSet texture_id = VK_NULL_HANDLE;
     VrcTexture2D texture = VK_NULL_HANDLE;
     VkFence fence = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_rendering = VK_NULL_HANDLE;
     VkExtent2D viewport_window_size = { 32, 32 };
+
+    bool is_first = true;
 
     vrc_fence_create(driver, &fence);
     vrc_command_buffer_alloc(driver, &command_buffer_rendering);
@@ -1729,24 +1735,13 @@ int main()
             texture_id = ImGui_ImplVulkan_AddTexture(texture->sampler, texture->vk_view2d, texture->layout);
         }
 
-        // T
-        model = glm::translate(glm::mat4(1.0f), translation);
-            
-        // R
-        static float speed = 8.0f;
-        model = glm::rotate(model, glm::radians(rotation.x * speed), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::rotate(model, glm::radians(rotation.y * speed), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::rotate(model, glm::radians(rotation.z * speed), glm::vec3(0.0f, 0.0f, 1.0f));
-        
-        // S
-        model = glm::scale(model, scaling);
+        PushConstValue push_const;
 
         view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));
 
         proj = glm::perspective(glm::radians(45.0f), (float) viewport_window_size.width / viewport_window_size.height, 0.1f, 100.0f);
         proj[1][1] *= -1;
 
-        PushConstValue push_const;
         push_const.mvp = proj * view * model;
 
         // 离屏渲染
@@ -1785,17 +1780,75 @@ int main()
 
         // 控制 MVP 矩阵滑动组件
         ImGui::Begin("MVP");
-        ImGui::DragFloat3("旋转", glm::value_ptr(rotation), 0.05f);
-        ImGui::DragFloat3("平移", glm::value_ptr(translation), 0.05f);
-        ImGui::DragFloat3("缩放", glm::value_ptr(scaling), 0.05f);
+        bool changed = false;
+        changed |= ImGui::DragFloat3("旋转", glm::value_ptr(rotation), 0.05f);
+        changed |= ImGui::DragFloat3("平移", glm::value_ptr(translation), 0.05f);
+        changed |= ImGui::DragFloat3("缩放", glm::value_ptr(scaling), 0.05f);
         ImGui::End();
+
+        if (changed || is_first) {
+            // T
+            model = glm::translate(glm::mat4(1.0f), translation);
+
+            // R
+            static float speed = 8.0f;
+            model = glm::rotate(model, glm::radians(rotation.x * speed), glm::vec3(1.0f, 0.0f, 0.0f));
+            model = glm::rotate(model, glm::radians(rotation.y * speed), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::rotate(model, glm::radians(rotation.z * speed), glm::vec3(0.0f, 0.0f, 1.0f));
+
+            // S
+            model = glm::scale(model, scaling);
+
+            is_first = false;
+        }
 
         // 渲染 Viewport 展示离屏渲染的图像内容
         vrc_imgui_begin_viewport();
         ImVec2 wsize = ImGui::GetWindowSize();
+        ImVec2 wpos = ImGui::GetWindowPos();
         viewport_window_size.width = wsize.x;
         viewport_window_size.height = wsize.y;
         ImGui::Image((ImTextureID) texture_id, { (float) texture->width, (float) texture->height });
+
+        // ImGuizmo
+        ImGuizmo::BeginFrame();
+        ImGuizmo::SetOrthographic(false);
+        ImGuizmo::SetDrawlist();
+        ImGuizmo::SetRect(wpos.x, wpos.y, wsize.x, wsize.y);
+
+        if (ImGui::IsKeyPressed(ImGuiKey_T))
+            operation = ImGuizmo::TRANSLATE;
+
+        if (ImGui::IsKeyPressed(ImGuiKey_R))
+            operation = ImGuizmo::ROTATE;
+
+        if (ImGui::IsKeyPressed(ImGuiKey_S))
+            operation = ImGuizmo::SCALE;
+
+        //
+        // 前面已经反转了 Y 轴，为什么这里还要再次反转 Y 轴？
+        //
+        // 因为我们目前的投影矩阵是使用 GLM 的 perspective 函数生成投影矩阵（projection），
+        // 而 GLM 本质是为 OpenGL 准备的函数库，所以在 OpenGL 的右手坐标系中 Y 轴是向上的，
+        // 在 Vulkan 中使用的是左手坐标系，Y轴向下，所以需要反转一次 Y 轴。
+        //
+        // 而此处又反转了一次 Y 轴是因为 ImGuizmo 使用的 OpenGL 标准，它的投影是 Y 轴向上的，
+        // 所以需要再次反转 Y 轴以匹配 ImGuizmo 的坐标系。
+        //
+        proj[1][1] *= -1;
+        ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj),
+                             operation, ImGuizmo::LOCAL,
+                             glm::value_ptr(model), nullptr, nullptr);
+
+        if (ImGuizmo::IsUsing())
+            ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(model), glm::value_ptr(translation), glm::value_ptr(rotation), glm::value_ptr(scaling));
+
+        //
+        // 此处再次反转 Y 轴是回了 projection 矩阵参与后续的着色器计算，让投影矩阵的坐标系
+        // 回归到 Vulkan 的坐标系中。
+        //
+        proj[1][1] *= -1;
+
         vrc_imgui_end_viewport();
 
         vrc_imgui_end_rendering(command_buffer_ring);

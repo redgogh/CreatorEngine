@@ -17,6 +17,7 @@ file(GLOB ENGINE_MODULE_SOURCES
   ${LIBRARY_DIRECTORIES}/imgui/*.cpp
   ${LIBRARY_DIRECTORIES}/imgui/backends/imgui_impl_glfw.cpp
   ${LIBRARY_DIRECTORIES}/imgui/backends/imgui_impl_vulkan.cpp
+  ${LIBRARY_DIRECTORIES}/ImGuizmo/ImGuizmo.cpp
 )
 
 set(GLFW_LIBRARY_DIRECTORY ${LIBRARY_DIRECTORIES}/GLFW/lib-mingw-w64)
