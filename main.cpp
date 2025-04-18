@@ -109,7 +109,7 @@ typedef struct VrcPipeline_T {
     VkPipeline vk_pipeline = VK_NULL_HANDLE;
     VkPipelineLayout vk_pipeline_layout = VK_NULL_HANDLE;
     VkDescriptorSetLayout vk_descriptor_set_layout = VK_NULL_HANDLE;
-    VkDescriptorSet vk_descriptor_set = VK_NULL_HANDLE;
+    VkDescriptorSet vk_sampler2d_descriptor = VK_NULL_HANDLE;
     VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 } *VrcPipeline;
 
@@ -549,8 +549,7 @@ void vrc_texture2d_destroy(const VrcDriver *driver, VrcTexture2D texture)
     memdel(texture);
 }
 
-VkResult
-vrc_descriptor_set_layout_create(const VrcDriver *driver, uint32_t bind_count, VkDescriptorSetLayoutBinding *p_binds, VkDescriptorSetLayout *p_layout)
+VkResult vrc_descriptor_set_layout_create(const VrcDriver *driver, uint32_t bind_count, VkDescriptorSetLayoutBinding *p_binds, VkDescriptorSetLayout *p_layout)
 {
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -561,8 +560,12 @@ vrc_descriptor_set_layout_create(const VrcDriver *driver, uint32_t bind_count, V
     return vkCreateDescriptorSetLayout(driver->device, &descriptorSetLayoutCreateInfo, VK_NULL_HANDLE, p_layout);
 }
 
-VkResult
-vrc_descriptor_set_alloc(const VrcDriver *driver, VkDescriptorSetLayout layout, VkDescriptorSet *p_descriptor_set)
+void vrc_descriptor_set_layout_destroy(const VrcDriver* driver, VkDescriptorSetLayout descriptorSetLayout)
+{
+    vkDestroyDescriptorSetLayout(driver->device, descriptorSetLayout, VK_NULL_HANDLE);
+}
+
+VkResult vrc_descriptor_set_alloc(const VrcDriver *driver, VkDescriptorSetLayout layout, VkDescriptorSet *p_descriptor_set)
 {
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -574,9 +577,35 @@ vrc_descriptor_set_alloc(const VrcDriver *driver, VkDescriptorSetLayout layout, 
     return vkAllocateDescriptorSets(driver->device, &descriptorSetAllocateInfo, p_descriptor_set);
 }
 
-VkResult vrc_descriptor_set_free(const VrcDriver *driver, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set)
+VkResult vrc_descriptor_set_free(const VrcDriver *driver, VkDescriptorSet descriptor_set)
 {
-    return vkFreeDescriptorSets(driver->device, descriptor_pool, 1, &descriptor_set);
+    return vkFreeDescriptorSets(driver->device, driver->descriptor_pool, 1, &descriptor_set);
+}
+
+void vrc_descriptor_set_write(const VrcDriver* driver, VkDescriptorSet descriptorSet, VrcTexture2D texture)
+{
+    VkDescriptorImageInfo imageInfo = {
+        .sampler = texture->sampler,
+        .imageView = texture->vk_view2d,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    VkWriteDescriptorSet descriptorWrite = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptorSet,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo = &imageInfo,
+    };
+
+    vkUpdateDescriptorSets(driver->device, 1, &descriptorWrite, 0, nullptr);
+}
+
+void vrc_cmd_bind_descriptor_set(VkCommandBuffer command_buffer, VrcPipeline pipeline, VkDescriptorSet descriptorSet)
+{
+    vkCmdBindDescriptorSets(command_buffer, pipeline->bindpoint, pipeline->vk_pipeline_layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
 }
 
 VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipeline *p_pipeline)
@@ -610,18 +639,16 @@ VkResult vrc_pipeline_create(const VrcDriver *driver, VkFormat color, VrcPipelin
 
     if ((err = vrc_load_shader_module(driver->device, "shaders/spir-v/simple_fragment.spv", &fragment_shader_module)))
         return vrc_pipeline_cleanup(err);
-    
+
+    // 创建 DescriptorSet
     VkDescriptorSetLayoutBinding descriptorSetLayoutBinding[] = {
-        { 0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE }
+        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE }
     };
     
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = std::size(descriptorSetLayoutBinding),
-        .pBindings = std::data(descriptorSetLayoutBinding),
-    };
-    
-    if ((err = vkCreateDescriptorSetLayout(driver->device, &descriptorSetLayoutCreateInfo, VK_NULL_HANDLE, &tmp->vk_descriptor_set_layout)))
+    if ((err = vrc_descriptor_set_layout_create(driver, std::size(descriptorSetLayoutBinding), std::data(descriptorSetLayoutBinding), &tmp->vk_descriptor_set_layout)))
+        return vrc_pipeline_cleanup(err);
+
+    if ((err = vrc_descriptor_set_alloc(driver, tmp->vk_descriptor_set_layout, &tmp->vk_sampler2d_descriptor)))
         return vrc_pipeline_cleanup(err);
 
     VkPushConstantRange pushConstantRanges[] = {
@@ -788,6 +815,12 @@ void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline)
     if (!pipeline)
         return;
 
+    if (pipeline->vk_sampler2d_descriptor != VK_NULL_HANDLE)
+        vrc_descriptor_set_free(driver, pipeline->vk_sampler2d_descriptor);
+
+    if (pipeline->vk_descriptor_set_layout != VK_NULL_HANDLE)
+        vrc_descriptor_set_layout_destroy(driver, pipeline->vk_descriptor_set_layout);
+
     if (pipeline->vk_pipeline_layout != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(driver->device, pipeline->vk_pipeline_layout, VK_NULL_HANDLE);
 
@@ -859,6 +892,15 @@ VkResult vrc_memory_write(const VrcDriver* driver, VrcTexture2D texture, size_t 
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                            1,
                            &region);
+
+    vrc_memory_image_barrier(command_buffer,
+                             texture->vk_image,
+                             VK_ACCESS_TRANSFER_WRITE_BIT,
+                             VK_ACCESS_SHADER_READ_BIT,
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     
     vrc_cmd_end_once(command_buffer);
 
@@ -1609,7 +1651,7 @@ int main()
     
     // 加载 cube 贴图
     int tex_width, tex_height, tex_channels;
-    stbi_uc* pixels = stbi_load("assets/cube/cube_texture.png", &tex_width, &tex_height, &tex_channels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load("assets/cube/cube_texture.jpg", &tex_width, &tex_height, &tex_channels, STBI_rgb_alpha);
     if (!pixels)
         vrc_error_fatal("Failed to load texture image for cube", VK_ERROR_INITIALIZATION_FAILED);
 
@@ -1711,6 +1753,8 @@ int main()
         vrc_cmd_begin_rendering(command_buffer_rendering, texture->width, texture->height, texture->vk_view2d);
 
         vrc_cmd_bind_pipeline(command_buffer_rendering, pipeline);
+        vrc_cmd_bind_descriptor_set(command_buffer_rendering, pipeline, pipeline->vk_sampler2d_descriptor);
+        vrc_descriptor_set_write(driver, pipeline->vk_sampler2d_descriptor, cube_texture);
         vrc_cmd_push_constants(command_buffer_rendering, pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstValue), &push_const);
         vrc_cmd_bind_vertex_buffer(command_buffer_rendering, vertex_buffer);
         vrc_cmd_bind_index_buffer(command_buffer_rendering, index_buffer);
@@ -1769,6 +1813,7 @@ int main()
     // 离屏渲染对象销毁
     ImGui_ImplVulkan_RemoveTexture(texture_id);
     vrc_texture2d_destroy(driver, texture);
+    vrc_texture2d_destroy(driver, cube_texture);
     vrc_fence_destroy(driver, fence);
     vrc_pipeline_destroy(driver, pipeline);
     vrc_buffer_destroy(driver, vertex_buffer);
