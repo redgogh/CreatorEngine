@@ -637,14 +637,14 @@ namespace IMGUIZMO_NAMESPACE
    Style::Style()
    {
       // default values
-      TranslationLineThickness   = 3.0f;
-      TranslationLineArrowSize   = 6.0f;
-      RotationLineThickness      = 2.0f;
-      RotationOuterLineThickness = 3.0f;
-      ScaleLineThickness         = 3.0f;
-      ScaleLineCircleSize        = 6.0f;
-      HatchedAxisLineThickness   = 6.0f;
-      CenterCircleSize           = 6.0f;
+      TranslationLineThickness = 5.0f;
+      TranslationLineArrowSize = 10.0f;
+      RotationLineThickness = 5.0f;
+      RotationOuterLineThickness = 6.0f;
+      ScaleLineThickness = 5.0f;
+      ScaleLineCircleSize = 10.0f;
+      HatchedAxisLineThickness = 6.0f;
+      CenterCircleSize = 8.0f;
 
       // initialize default colors
       Colors[DIRECTION_X]           = ImVec4(0.666f, 0.000f, 0.000f, 1.000f);
