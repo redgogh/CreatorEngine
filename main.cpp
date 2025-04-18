@@ -1455,7 +1455,7 @@ int main()
     vrc_imgui_init(driver, window, swapchain);
 
     // create vertex buffer
-    std::vector<Vertex> vertices = vrc_load_obj("assets/cube.obj");
+    std::vector<Vertex> vertices = vrc_load_obj("assets/cube/cube.obj");
     VkDeviceSize vertices_buffer_size = std::size(vertices) * sizeof(Vertex);
     if ((err = vrc_buffer_create(driver, vertices_buffer_size, &vertex_buffer,
                                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT)))

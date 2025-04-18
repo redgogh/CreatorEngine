@@ -17,9 +17,9 @@
 @REM  ======================================================================== ::
 @echo off
 
-set root=../
+set root=..
 
 glslc -fshader-stage=vert %root%/shaders/glsl/simple_vertex.glsl -o %root%/shaders/spir-v/simple_vertex.spv
 glslc -fshader-stage=frag %root%/shaders/glsl/simple_fragment.glsl -o %root%/shaders/spir-v/simple_fragment.spv
 
-robocopy %root%/shaders/spir-v %root%/cmake-build-debug/shaders/spir-v /e /copyall /r:0 /w:0 >nul
+robocopy %root%/shaders/spir-v %root%/cmake-build-debug/shaders/spir-v /e /r:0 /w:0 >nul
