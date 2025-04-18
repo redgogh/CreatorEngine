@@ -1518,7 +1518,7 @@ int main()
     glm::mat4 proj(1.0f);
 
     glm::vec3 translation(0.0f);
-    glm::vec3 rotation(1.0f);
+    glm::vec3 rotation(0.0f);
     glm::vec3 scaling(0.5f);
 
     // offscreen rendering
@@ -1531,26 +1531,11 @@ int main()
     vrc_fence_create(driver, &fence);
     vrc_command_buffer_alloc(driver, &command_buffer_rendering);
 
-    float speed = 0.5f;
-    float angle = 0.0f;
-    float delta_time = 0.0f;
-    float now_frame_time = 0.0f;
-    float last_frame_time = glfwGetTime();
-
     while (!glfwWindowShouldClose(window)) {
         vrc_swapchain_resize_check(driver, &swapchain);
 
         swapchain->frame = (swapchain->frame + 1) % swapchain->min_image_count;
         vrc_acquire_next_index(driver, swapchain, &swapchain->acquire_index);
-
-        now_frame_time = glfwGetTime();
-        delta_time = now_frame_time - last_frame_time;
-        last_frame_time = now_frame_time;
-
-        angle += delta_time * speed;
-
-        if (angle > glm::two_pi<float>())
-            angle -= glm::two_pi<float>();
 
         if (!texture || viewport_window_size.width != texture->width || viewport_window_size.height != texture->height) {
             if (texture != VK_NULL_HANDLE)
@@ -1588,11 +1573,16 @@ int main()
             texture_id = ImGui_ImplVulkan_AddTexture(texture->sampler, texture->vk_view2d, texture->layout);
         }
 
-        // 计算 MVP 矩阵
-        rotation.y += delta_time * speed;
-
+        // T
         model = glm::translate(glm::mat4(1.0f), translation);
-        model = glm::rotate(model, angle, glm::normalize(rotation));
+            
+        // R
+        static float speed = 8.0f;
+        model = glm::rotate(model, glm::radians(rotation.x * speed), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(rotation.y * speed), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(rotation.z * speed), glm::vec3(0.0f, 0.0f, 1.0f));
+        
+        // S
         model = glm::scale(model, scaling);
 
         view = glm::lookAt(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0, 0.0f));
@@ -1637,9 +1627,9 @@ int main()
 
         // 控制 MVP 矩阵滑动组件
         ImGui::Begin("MVP");
-        ImGui::DragFloat3("旋转", glm::value_ptr(rotation), 0.001f);
-        ImGui::DragFloat3("平移", glm::value_ptr(translation), 0.001f);
-        ImGui::DragFloat3("缩放", glm::value_ptr(scaling), 0.001f);
+        ImGui::DragFloat3("旋转", glm::value_ptr(rotation), 0.05f);
+        ImGui::DragFloat3("平移", glm::value_ptr(translation), 0.05f);
+        ImGui::DragFloat3("缩放", glm::value_ptr(scaling), 0.05f);
         ImGui::End();
 
         // 渲染 Viewport 展示离屏渲染的图像内容
