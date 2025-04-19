@@ -36,6 +36,7 @@
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
 #include <ImGuizmo/ImGuizmo.h>
+#include <imnodes/imnodes.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -157,6 +158,14 @@ namespace std {
         }
     };
 }
+
+struct Link {
+    int id;
+    int start_attr;
+    int end_attr;
+};
+
+std::vector<Link> editor_links;
 
 void vrc_swapchain_destroy(const VrcDriver *driver, VrcSwapchainEXT swapchain);
 void vrc_pipeline_destroy(const VrcDriver *driver, VrcPipeline pipeline);
@@ -851,7 +860,7 @@ void vrc_memory_write(const VrcDriver *driver, VrcBuffer buffer, size_t size, vo
 
 VkResult vrc_memory_write(const VrcDriver* driver, VrcTexture2D texture, size_t size, void* data)
 {
-    VkResult err;
+    VkResult U_ASSERT_ONLY err;
     VrcBuffer tmp;
 
     vrc_buffer_create(driver, size, &tmp, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -1387,6 +1396,8 @@ void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapch
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark();
 
+    ImNodes::CreateContext();
+
     // 设置 ImGui 渲染字体
     io.Fonts->AddFontFromFileTTF("misc/fonts/Microsoft Yahei UI/Microsoft Yahei UI.ttf", 18.0f,
                                  nullptr, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
@@ -1421,6 +1432,7 @@ void vrc_imgui_init(const VrcDriver *driver, GLFWwindow *window, const VrcSwapch
 
 void vrc_imgui_terminate()
 {
+    ImNodes::DestroyContext();
     ImGui_ImplGlfw_Shutdown();
     ImGui_ImplVulkan_Shutdown();
 }
@@ -1459,6 +1471,18 @@ void vrc_imgui_end_viewport()
 {
     ImGui::End();
     ImGui::PopStyleVar();
+}
+
+void vrc_imgui_begin_node_editor()
+{
+    ImGui::Begin("节点编辑器");
+    ImNodes::BeginNodeEditor();
+}
+
+void vrc_imgui_end_node_editor()
+{
+    ImNodes::EndNodeEditor();
+    ImGui::End();
 }
 
 VkResult vrc_swapchain_create(const VrcDriver *driver, VrcSwapchainEXT *p_swapchain, VrcSwapchainEXT exist = VK_NULL_HANDLE)
@@ -1676,7 +1700,7 @@ int main()
     glm::mat4 proj(1.0f);
 
     glm::vec3 translation(0.0f);
-    glm::vec3 rotation(0.0f);
+    glm::vec3 rotation(-59.488f, -0.507, -67.967f);
     glm::vec3 scaling(0.5f);
 
     ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
@@ -1776,8 +1800,6 @@ int main()
         vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
         vrc_imgui_begin_rendering(command_buffer_ring);
 
-        ImGui::ShowDemoWindow();
-
         // 控制 MVP 矩阵滑动组件
         ImGui::Begin("MVP");
         bool changed = false;
@@ -1850,6 +1872,64 @@ int main()
         proj[1][1] *= -1;
 
         vrc_imgui_end_viewport();
+
+        // imnodes
+        vrc_imgui_begin_node_editor();
+
+        for (int k = 0; k < 3; k++) {
+            {
+                int base_id = k * 1024;
+                ImNodes::BeginNode(base_id);
+
+                ImNodes::BeginNodeTitleBar();
+                ImGui::TextUnformatted("输出节点");
+                ImNodes::EndNodeTitleBar();
+
+                static const char *input_name[3] = {
+                    "R", "G", "B"
+                };
+
+                ImNodes::PushColorStyle(ImNodesCol_Pin, IM_COL32(0, 255, 0, 255));
+                for (int i = 0; i < 3; i++) {
+                    ImNodes::BeginInputAttribute(base_id + 123 * (i + 1));
+                    ImGui::Text(input_name[i]);
+                    ImNodes::EndInputAttribute();
+                }
+                ImNodes::PopColorStyle();
+
+                const int output_attr_id = base_id + 231;
+                ImNodes::PushColorStyle(ImNodesCol_Pin, IM_COL32(255, 0, 0, 255));
+                ImNodes::BeginOutputAttribute(output_attr_id);
+                ImGui::Indent(60);
+                ImGui::Text("输出颜色");
+                ImNodes::EndOutputAttribute();
+                ImNodes::PopColorStyle();
+
+                ImNodes::EndNode();
+            }
+        }
+
+        for (const auto& link : editor_links) {
+            ImNodes::Link(link.id, link.start_attr, link.end_attr);
+        }
+
+        vrc_imgui_end_node_editor();
+
+        int start_attr, end_attr;
+        if (ImNodes::IsLinkCreated(&start_attr, &end_attr)) {
+            static int link_id = 0;
+            editor_links.emplace_back((++link_id), start_attr, end_attr);
+        }
+
+        int link_id;
+        if (ImNodes::IsLinkDestroyed(&link_id))
+        {
+            auto iter = std::find_if(
+                editor_links.begin(), editor_links.end(), [link_id](const Link& link) -> bool {
+                    return link.id == link_id;
+                });
+            editor_links.erase(iter);
+        }
 
         vrc_imgui_end_rendering(command_buffer_ring);
         vrc_cmd_end_rendering(command_buffer_ring);
