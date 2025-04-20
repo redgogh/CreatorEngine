@@ -1784,6 +1784,8 @@ int main()
         vrc_cmd_begin_rendering(command_buffer_ring, swapchain->width, swapchain->height, view2d);
         vrc_imgui_begin_rendering(command_buffer_ring);
 
+        ImGui::ShowDemoWindow();
+
         // 控制 MVP 矩阵滑动组件
         ImGui::Begin("MVP");
         bool changed = false;
