@@ -1684,7 +1684,7 @@ int main()
     glm::mat4 proj(1.0f);
 
     glm::vec3 translation(0.0f);
-    glm::vec3 rotation(-59.488f, -0.507, -67.967f);
+    glm::vec3 rotation(0.0f, 0.0f, 0.0f);
     glm::vec3 scaling(0.5f);
 
     ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
@@ -1820,7 +1820,7 @@ int main()
 
         // ImGuizmo
         ImGuizmo::BeginFrame();
-        ImGuizmo::SetOrthographic(false);
+        ImGuizmo::SetOrthographic(true);
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(wpos.x, wpos.y, wsize.x, wsize.y);
 
