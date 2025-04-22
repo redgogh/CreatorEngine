@@ -15,12 +15,37 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "VulkanInclude.h"
+#include "Driver/RenderDevice.h"
 
-#ifdef USE_VOLK_LOADER
-#  define VOLK_IMPLEMENTATION
-#  include <volk/volk.h>
-#endif
+int main()
+{
+    system("chcp 65001 >nul");
 
-#define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+    /*
+     * close stdout and stderr write to buf, let direct
+     * output.
+     */
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+
+    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "NATURE");
+    RenderDevice* device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
+
+    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
+
+    const char text[] = "hello world";
+    vertexBuffer->WriteMemory(0, sizeof(text), text);
+
+    char buf[32] = {0};
+    vertexBuffer->ReadMemory(0, sizeof(text), buf);
+
+    printf("%s\n", buf);
+
+    device->DestroyBuffer(vertexBuffer);
+
+    while (!window->IsShouldClose()) {
+        window->PollEvents();
+    }
+
+    RenderDevice::Destroy(device);
+}

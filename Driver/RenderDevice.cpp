@@ -19,10 +19,10 @@
 
 #include "Driver/Vulkan/VulkanRenderDevice.h"
 
-RenderDevice *RenderDevice::Create(const RenderAPI &renderAPI)
+RenderDevice *RenderDevice::Create(const Window* window, const RenderAPI& renderAPI)
 {
     switch (renderAPI) {
-        case RENDER_API_FOR_VULKAN: return MemoryNew<VulkanRenderDevice>();
+        case RENDER_API_FOR_VULKAN: return MemoryNew<VulkanRenderDevice>(window);
     }
 
     throw std::runtime_error("不支持的渲染 API 后端");

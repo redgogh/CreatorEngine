@@ -17,6 +17,7 @@
 \* -------------------------------------------------------------------------------- */
 #pragma once
 
+#include "Window/Window.h"
 #include "Buffer.h"
 
 enum RenderAPI {
@@ -31,7 +32,7 @@ public:
     virtual void DestroyBuffer(Buffer* buffer) = 0;
 
 public:
-    static RenderDevice* Create(const RenderAPI& renderAPI);
+    static RenderDevice* Create(const Window* window, const RenderAPI& renderAPI);
     static void Destroy(RenderDevice* device);
 
 };

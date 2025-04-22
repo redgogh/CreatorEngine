@@ -19,17 +19,19 @@
 
 #include "Driver/RenderDevice.h"
 
+#include "VulkanUtils.h"
 #include "VulkanBuffer.h"
 
 class VulkanRenderDevice : public RenderDevice {
 public:
-    VulkanRenderDevice();
+    VulkanRenderDevice(const Window* _window);
     virtual ~VulkanRenderDevice() override;
 
     virtual Buffer* CreateBuffer(size_t size, BufferUsageFlags usage) override;
     virtual void DestroyBuffer(Buffer* buffer) override;
 
 private:
+    const Window* window = VK_NULL_HANDLE;
     VulkanDriver* driver = VK_NULL_HANDLE;
 
 };

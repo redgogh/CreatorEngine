@@ -15,23 +15,15 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
 
-int main()
+/* Create by Red Gogh on 2025/4/7 */
+#pragma once
+
+#include "Typedef.h"
+// std
+#include <stdexcept>
+
+inline static void ERROR_FATAL(const std::string&& message)
 {
-    RenderDevice* device = RenderDevice::Create(RENDER_API_FOR_VULKAN);
-
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
-
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
-
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
-
-    printf("%s\n", buf);
-
-    device->DestroyBuffer(vertexBuffer);
-
-    RenderDevice::Destroy(device);
+    throw std::runtime_error(message);
 }

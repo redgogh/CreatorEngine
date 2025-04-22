@@ -15,12 +15,49 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "VulkanInclude.h"
+#include "Window.h"
 
-#ifdef USE_VOLK_LOADER
-#  define VOLK_IMPLEMENTATION
-#  include <volk/volk.h>
-#endif
+static unsigned int WCounter = 0;
 
-#define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+Window::Window(uint32_t w, uint32_t h, const char *title)
+    : width(w), height(h)
+{
+    if (!WCounter) {
+        glfwInit();
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    }
+
+    hwnd = glfwCreateWindow(w, h, title, nullptr, nullptr);
+
+    if (!hwnd)
+        throw std::runtime_error("Failed to create GLFW window");
+
+    WCounter++;
+}
+
+Window::~Window()
+{
+    glfwDestroyWindow(hwnd);
+    if (!(WCounter--))
+        glfwTerminate();
+}
+
+bool Window::IsShouldClose() const
+{
+    return glfwWindowShouldClose(hwnd);
+}
+
+GLFWwindow *Window::GetHandle() const
+{
+    return hwnd;
+}
+
+void *Window::GetNativeHandle() const
+{
+    return glfwGetWin32Window(hwnd);
+}
+
+void Window::PollEvents() const
+{
+    glfwPollEvents();
+}

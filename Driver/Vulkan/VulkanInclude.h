@@ -19,18 +19,22 @@
 
 #include <Vdx/Typedef.h>
 
-#define USE_VOLK_LOADER
-
 #ifdef USE_VOLK_LOADER
 #  include <volk/volk.h>
 #else
 #  include <vulkan/vulkan.h>
 #endif
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 #include <vma/vk_mem_alloc.h>
 
 struct VulkanDriver {
+    uint32_t apiVersion = 0;
     VkInstance instance = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     uint32_t queueIndex = 0;
     VkDevice device = VK_NULL_HANDLE;

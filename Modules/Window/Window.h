@@ -15,12 +15,28 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "VulkanInclude.h"
+#pragma once
 
-#ifdef USE_VOLK_LOADER
-#  define VOLK_IMPLEMENTATION
-#  include <volk/volk.h>
-#endif
+#include <GLFW/glfw3.h>
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 
-#define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+#include <Vdx/Typedef.h>
+#include <Vdx/Error.h>
+
+class Window {
+public:
+    Window(uint32_t w, uint32_t h, const char *title);
+   ~Window();
+
+    bool IsShouldClose() const;
+    GLFWwindow* GetHandle() const;
+    void* GetNativeHandle() const;
+    void PollEvents() const;
+
+private:
+    uint32_t width = 0;
+    uint32_t height = 0;
+
+    GLFWwindow* hwnd = nullptr;
+};

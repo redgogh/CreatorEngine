@@ -15,12 +15,45 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
+#pragma once
+
 #include "VulkanInclude.h"
 
-#ifdef USE_VOLK_LOADER
-#  define VOLK_IMPLEMENTATION
-#  include <volk/volk.h>
-#endif
+namespace VulkanUtils {
 
-#define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+    static VkPhysicalDevice PickDiscreteDevice(const std::vector<VkPhysicalDevice> &devices)
+    {
+        for (const auto &device: devices) {
+            VkPhysicalDeviceProperties properties;
+            vkGetPhysicalDeviceProperties(device, &properties);
+
+            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                return device;
+        }
+
+        assert(std::size(devices) > 0);
+        return devices[0];
+    }
+
+    static void FindQueueIndex(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
+    {
+        uint32_t count;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, VK_NULL_HANDLE);
+
+        std::vector<VkQueueFamilyProperties> properties(count);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, std::data(properties));
+
+        for (uint32_t i = 0; i < count; i++) {
+            VkQueueFamilyProperties property = properties[i];
+            VkBool32 supported = VK_FALSE;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
+            if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supported) {
+                *p_index = i;
+                return;
+            }
+        }
+
+        ERROR_FATAL("Can't not found queue to support present");
+    }
+
+}
