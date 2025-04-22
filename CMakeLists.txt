@@ -13,6 +13,8 @@ include_directories(
 
 file(GLOB ENGINE_MODULE_SOURCES
   ${PROJECT_SOURCE_DIR}/*.cpp
+  ${PROJECT_SOURCE_DIR}/Driver/*.cpp
+  ${PROJECT_SOURCE_DIR}/Driver/Vulkan/*.cpp
   # -- ImGui --
   ${LIBRARY_DIRECTORIES}/imgui/*.cpp
   ${LIBRARY_DIRECTORIES}/imgui/backends/imgui_impl_glfw.cpp

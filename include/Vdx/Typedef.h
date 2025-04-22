@@ -15,12 +15,30 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/VdxRenderDevice.h"
 
-int main()
+/* Create by Red Gogh on 2025/4/7 */
+#pragma once
+
+#include <memory>
+#include <assert.h>
+#include <stddef.h>
+
+#if defined(__MINGW32__)
+#  define U_MAYBE_UNUSED __attribute__((unused))
+#else
+#  define U_MAYBE_UNUSED
+#endif
+
+#define U_ASSERT_ONLY U_MAYBE_UNUSED
+
+template<typename T, typename... Args>
+inline static T* MemoryNew(Args&& ... args)
 {
-    VdxRenderDevice* device = VdxRenderDevice::Create(VDX_RENDER_API_FOR_VULKAN);
-    VdxBuffer* vertexBuffer = device->CreateBuffer(1024 * 4, VDX_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-    device->DestroyBuffer(vertexBuffer);
-    VdxRenderDevice::Destroy(device);
+    return new T(std::forward<Args>(args) ...);
+}
+
+template<typename T>
+inline static void MemoryDelete(T* ptr)
+{
+    delete ptr;
 }
