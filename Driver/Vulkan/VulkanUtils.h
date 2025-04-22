@@ -17,7 +17,7 @@
 \* -------------------------------------------------------------------------------- */
 #pragma once
 
-#include "VulkanInclude.h"
+#include "VulkanContext.h"
 
 namespace VulkanUtils {
 

@@ -26,7 +26,7 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
     VkResult err;
     uint32_t count;
 
-    driver = MemoryNew<VulkanDriver>();
+    vkContext = MemoryNew<VulkanContext>();
 
     /*
      * initialize volk loader to dynamic load about instance function
@@ -35,13 +35,13 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
     if ((err = volkInitialize()))
         ERROR_FATAL("Failed to initialize volk loader");
 
-    if ((err = vkEnumerateInstanceVersion(&driver->apiVersion)))
+    if ((err = vkEnumerateInstanceVersion(&vkContext->apiVersion)))
         ERROR_FATAL("Can't not get instance version");
 
     printf("Vulkan %u.%u.%u\n",
-           VK_VERSION_MAJOR(driver->apiVersion),
-           VK_VERSION_MINOR(driver->apiVersion),
-           VK_VERSION_PATCH(driver->apiVersion));
+           VK_VERSION_MAJOR(vkContext->apiVersion),
+           VK_VERSION_MINOR(vkContext->apiVersion),
+           VK_VERSION_PATCH(vkContext->apiVersion));
 
     VkApplicationInfo info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -49,7 +49,7 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
         .pEngineName = "Veronak Engine",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-        .apiVersion = driver->apiVersion
+        .apiVersion = vkContext->apiVersion
     };
 
     std::vector<const char *> extensions;
@@ -72,21 +72,21 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
 
     };
 
-    if ((err = vkCreateInstance(&instance_ci, VK_NULL_HANDLE, &driver->instance)))
+    if ((err = vkCreateInstance(&instance_ci, VK_NULL_HANDLE, &vkContext->instance)))
         ERROR_FATAL("Failed to create instance");
 
 #ifdef USE_VOLK_LOADER
-    volkLoadInstance(driver->instance);
+    volkLoadInstance(vkContext->instance);
 #endif /* USE_VOLK_LOADER */
 
-    if ((err = vkEnumeratePhysicalDevices(driver->instance, &count, VK_NULL_HANDLE)))
+    if ((err = vkEnumeratePhysicalDevices(vkContext->instance, &count, VK_NULL_HANDLE)))
         ERROR_FATAL("Failed to enumerate physical device list count");
 
     std::vector<VkPhysicalDevice> devices(count);
-    if ((err = vkEnumeratePhysicalDevices(driver->instance, &count, std::data(devices))))
+    if ((err = vkEnumeratePhysicalDevices(vkContext->instance, &count, std::data(devices))))
         ERROR_FATAL("Failed to enumerate physical device list data");
 
-    driver->physicalDevice = VulkanUtils::PickDiscreteDevice(devices);
+    vkContext->physicalDevice = VulkanUtils::PickDiscreteDevice(devices);
 
     VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -94,20 +94,20 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
         .hwnd = (HWND) window->GetNativeHandle(),
     };
 
-    PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR) vkGetInstanceProcAddr(driver->instance, "vkCreateWin32SurfaceKHR");
-    vkCreateWin32SurfaceKHR(driver->instance, &win32SurfaceCreateInfo, nullptr, &driver->surface);
+    PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR) vkGetInstanceProcAddr(vkContext->instance, "vkCreateWin32SurfaceKHR");
+    vkCreateWin32SurfaceKHR(vkContext->instance, &win32SurfaceCreateInfo, nullptr, &vkContext->surface);
 
     VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(driver->physicalDevice, &properties);
+    vkGetPhysicalDeviceProperties(vkContext->physicalDevice, &properties);
     printf("Use GPU %s\n", properties.deviceName);
 
     float priorities = 1.0f;
 
-    VulkanUtils::FindQueueIndex(driver->physicalDevice, driver->surface, &driver->queueIndex);
+    VulkanUtils::FindQueueIndex(vkContext->physicalDevice, vkContext->surface, &vkContext->queueIndex);
 
     VkDeviceQueueCreateInfo queue_ci = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .queueFamilyIndex = driver->queueIndex,
+        .queueFamilyIndex = vkContext->queueIndex,
         .queueCount = 1,
         .pQueuePriorities = &priorities,
     };
@@ -139,22 +139,22 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
         .ppEnabledExtensionNames = std::data(device_extensions),
     };
 
-    if ((err = vkCreateDevice(driver->physicalDevice, &device_ci, VK_NULL_HANDLE, &driver->device)))
+    if ((err = vkCreateDevice(vkContext->physicalDevice, &device_ci, VK_NULL_HANDLE, &vkContext->device)))
         ERROR_FATAL("Failed to create logic device");
 
 #ifdef USE_VOLK_LOADER
-    volkLoadDevice(driver->device);
+    volkLoadDevice(vkContext->device);
 #endif /* USE_VOLK_LOADER */
 
-    vkGetDeviceQueue(driver->device, driver->queueIndex, 0, &driver->queue);
+    vkGetDeviceQueue(vkContext->device, vkContext->queueIndex, 0, &vkContext->queue);
 
     VkCommandPoolCreateInfo command_pool_ci = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = driver->queueIndex,
+        .queueFamilyIndex = vkContext->queueIndex,
     };
 
-    if ((err = vkCreateCommandPool(driver->device, &command_pool_ci, VK_NULL_HANDLE, &driver->commandPool)))
+    if ((err = vkCreateCommandPool(vkContext->device, &command_pool_ci, VK_NULL_HANDLE, &vkContext->commandPool)))
         ERROR_FATAL("Failed to create command pool");
 
     VmaVulkanFunctions functions = {
@@ -163,13 +163,13 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
     };
 
     VmaAllocatorCreateInfo allocator_ci = {
-        .physicalDevice = driver->physicalDevice,
-        .device = driver->device,
+        .physicalDevice = vkContext->physicalDevice,
+        .device = vkContext->device,
         .pVulkanFunctions = &functions,
-        .instance = driver->instance,
+        .instance = vkContext->instance,
     };
 
-    if ((err = vmaCreateAllocator(&allocator_ci, &driver->allocator)))
+    if ((err = vmaCreateAllocator(&allocator_ci, &vkContext->allocator)))
         ERROR_FATAL("Failed to create VMA allocator");
 
     VkDescriptorPoolSize descriptorPoolSizes[] = {
@@ -194,25 +194,25 @@ VulkanRenderDevice::VulkanRenderDevice(const Window* _window) : window(_window)
         .pPoolSizes = std::data(descriptorPoolSizes),
     };
 
-    if ((err = vkCreateDescriptorPool(driver->device, &descriptorPoolCreateInfo, VK_NULL_HANDLE, &driver->descriptorPool)))
+    if ((err = vkCreateDescriptorPool(vkContext->device, &descriptorPoolCreateInfo, VK_NULL_HANDLE, &vkContext->descriptorPool)))
         ERROR_FATAL("Failed to create descriptor pool");
 }
 
 VulkanRenderDevice::~VulkanRenderDevice()
 {
-    vkDestroyDescriptorPool(driver->device, driver->descriptorPool, VK_NULL_HANDLE);
-    vkDestroyCommandPool(driver->device, driver->commandPool, VK_NULL_HANDLE);
-    vmaDestroyAllocator(driver->allocator);
-    vkDestroyDevice(driver->device, VK_NULL_HANDLE);
-    vkDestroySurfaceKHR(driver->instance, driver->surface, VK_NULL_HANDLE);
-    vkDestroyInstance(driver->instance, VK_NULL_HANDLE);
+    vkDestroyDescriptorPool(vkContext->device, vkContext->descriptorPool, VK_NULL_HANDLE);
+    vkDestroyCommandPool(vkContext->device, vkContext->commandPool, VK_NULL_HANDLE);
+    vmaDestroyAllocator(vkContext->allocator);
+    vkDestroyDevice(vkContext->device, VK_NULL_HANDLE);
+    vkDestroySurfaceKHR(vkContext->instance, vkContext->surface, VK_NULL_HANDLE);
+    vkDestroyInstance(vkContext->instance, VK_NULL_HANDLE);
 
-    MemoryDelete(driver);
+    MemoryDelete(vkContext);
 }
 
 Buffer *VulkanRenderDevice::CreateBuffer(size_t size, BufferUsageFlags usage)
 {
-    return MemoryNew<VulkanBuffer>(driver, size, usage);
+    return MemoryNew<VulkanBuffer>(vkContext, size, usage);
 }
 
 void VulkanRenderDevice::DestroyBuffer(Buffer *buffer)

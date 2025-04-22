@@ -17,8 +17,8 @@
 \* -------------------------------------------------------------------------------- */
 #include "VulkanBuffer.h"
 
-VulkanBuffer::VulkanBuffer(const VulkanDriver* _driver, size_t _size, BufferUsageFlags usage)
-    : driver(_driver), size(_size)
+VulkanBuffer::VulkanBuffer(const VulkanContext* _ctx, size_t _size, BufferUsageFlags usage)
+    : vkContext(_ctx), size(_size)
 {
     VkBufferCreateInfo bufferCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -32,26 +32,26 @@ VulkanBuffer::VulkanBuffer(const VulkanDriver* _driver, size_t _size, BufferUsag
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    vmaCreateBuffer(driver->allocator, &bufferCreateInfo, &allocationCreateInfo, &vkBuffer, &allocation, &allocationInfo);
+    vmaCreateBuffer(vkContext->allocator, &bufferCreateInfo, &allocationCreateInfo, &vkBuffer, &allocation, &allocationInfo);
 }
 
 VulkanBuffer::~VulkanBuffer()
 {
-    vmaDestroyBuffer(driver->allocator, vkBuffer, allocation);
+    vmaDestroyBuffer(vkContext->allocator, vkBuffer, allocation);
 }
 
 void VulkanBuffer::ReadMemory(size_t offset, size_t length, void *data)
 {
     void* ptr;
-    vmaMapMemory(driver->allocator, allocation, &ptr);
+    vmaMapMemory(vkContext->allocator, allocation, &ptr);
     memcpy(data, ptr, length);
-    vmaUnmapMemory(driver->allocator, allocation);
+    vmaUnmapMemory(vkContext->allocator, allocation);
 }
 
 void VulkanBuffer::WriteMemory(size_t offset, size_t length, const void *data)
 {
     void* ptr;
-    vmaMapMemory(driver->allocator, allocation, &ptr);
+    vmaMapMemory(vkContext->allocator, allocation, &ptr);
     memcpy(ptr, data, length);
-    vmaUnmapMemory(driver->allocator, allocation);
+    vmaUnmapMemory(vkContext->allocator, allocation);
 }

@@ -32,6 +32,6 @@ public:
 
 private:
     const Window* window = VK_NULL_HANDLE;
-    VulkanDriver* driver = VK_NULL_HANDLE;
+    VulkanContext* vkContext = VK_NULL_HANDLE;
 
 };

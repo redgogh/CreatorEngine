@@ -31,7 +31,7 @@
 
 #include <vma/vk_mem_alloc.h>
 
-struct VulkanDriver {
+struct VulkanContext {
     uint32_t apiVersion = 0;
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;

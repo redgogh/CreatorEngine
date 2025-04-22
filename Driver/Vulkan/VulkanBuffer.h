@@ -19,11 +19,11 @@
 
 #include "Driver/Buffer.h"
 
-#include "VulkanInclude.h"
+#include "VulkanContext.h"
 
 class VulkanBuffer : public Buffer {
 public:
-    VulkanBuffer(const VulkanDriver* _driver, size_t _size, BufferUsageFlags usage);
+    VulkanBuffer(const VulkanContext* _ctx, size_t _size, BufferUsageFlags usage);
     virtual ~VulkanBuffer() override;
 
     virtual size_t GetSize() override { return size; }
@@ -31,7 +31,7 @@ public:
     virtual void WriteMemory(size_t offset, size_t length, const void* data) override;
 
 private:
-    const VulkanDriver* driver = VK_NULL_HANDLE;
+    const VulkanContext* vkContext = VK_NULL_HANDLE;
 
     uint32_t size = 0;
     VkBuffer vkBuffer = VK_NULL_HANDLE;
