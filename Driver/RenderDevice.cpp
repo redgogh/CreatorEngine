@@ -15,23 +15,20 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
+#include "RenderDevice.h"
 
-int main()
+#include "Driver/Vulkan/VulkanRenderDevice.h"
+
+RenderDevice *RenderDevice::Create(const RenderAPI &renderAPI)
 {
-    RenderDevice* device = RenderDevice::Create(RENDER_API_FOR_VULKAN);
+    switch (renderAPI) {
+        case RENDER_API_FOR_VULKAN: return MemoryNew<VulkanRenderDevice>();
+    }
 
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
+    throw std::runtime_error("不支持的渲染 API 后端");
+}
 
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
-
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
-
-    printf("%s\n", buf);
-
-    device->DestroyBuffer(vertexBuffer);
-
-    RenderDevice::Destroy(device);
+void RenderDevice::Destroy(RenderDevice *device)
+{
+    MemoryDelete(device);
 }

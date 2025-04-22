@@ -22,6 +22,12 @@
 #include <memory>
 #include <assert.h>
 #include <stddef.h>
+#include <string>
+#include <string_view>
+#include <format>
+#include <vector>
+#include <unordered_map>
+#include <stdexcept>
 
 #if defined(__MINGW32__)
 #  define U_MAYBE_UNUSED __attribute__((unused))

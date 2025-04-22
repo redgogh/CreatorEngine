@@ -15,23 +15,27 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
+#pragma once
 
-int main()
-{
-    RenderDevice* device = RenderDevice::Create(RENDER_API_FOR_VULKAN);
+#include <Vdx/Typedef.h>
 
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
+#define USE_VOLK_LOADER
 
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
+#ifdef USE_VOLK_LOADER
+#  include <volk/volk.h>
+#else
+#  include <vulkan/vulkan.h>
+#endif
 
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
+#include <vma/vk_mem_alloc.h>
 
-    printf("%s\n", buf);
-
-    device->DestroyBuffer(vertexBuffer);
-
-    RenderDevice::Destroy(device);
-}
+struct VulkanDriver {
+    VkInstance instance = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    uint32_t queueIndex = 0;
+    VkDevice device = VK_NULL_HANDLE;
+    VkQueue queue = VK_NULL_HANDLE;
+    VmaAllocator allocator = VK_NULL_HANDLE;
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+};

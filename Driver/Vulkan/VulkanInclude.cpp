@@ -15,23 +15,14 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
+#include "VulkanInclude.h"
 
-int main()
-{
-    RenderDevice* device = RenderDevice::Create(RENDER_API_FOR_VULKAN);
+#ifdef USE_VOLK_LOADER
+#  define VOLK_IMPLEMENTATION
+#  include <volk/volk.h>
+#else
+#  include <vulkan/vulkan.h>
+#endif
 
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
-
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
-
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
-
-    printf("%s\n", buf);
-
-    device->DestroyBuffer(vertexBuffer);
-
-    RenderDevice::Destroy(device);
-}
+#define VMA_IMPLEMENTATION
+#include <vma/vk_mem_alloc.h>

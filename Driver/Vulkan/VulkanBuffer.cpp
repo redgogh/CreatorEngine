@@ -15,23 +15,43 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
+#include "VulkanBuffer.h"
 
-int main()
+VulkanBuffer::VulkanBuffer(const VulkanDriver* _driver, size_t _size, BufferUsageFlags usage)
+    : driver(_driver), size(_size)
 {
-    RenderDevice* device = RenderDevice::Create(RENDER_API_FOR_VULKAN);
+    VkBufferCreateInfo bufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usage == BUFFER_USAGE_VERTEX_BIT ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
 
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
+    VmaAllocationCreateInfo allocationCreateInfo = {
+        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO,
+    };
 
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
+    vmaCreateBuffer(driver->allocator, &bufferCreateInfo, &allocationCreateInfo, &vkBuffer, &allocation, &allocationInfo);
+}
 
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
+VulkanBuffer::~VulkanBuffer()
+{
+    vmaDestroyBuffer(driver->allocator, vkBuffer, allocation);
+}
 
-    printf("%s\n", buf);
+void VulkanBuffer::ReadMemory(size_t offset, size_t length, void *data)
+{
+    void* ptr;
+    vmaMapMemory(driver->allocator, allocation, &ptr);
+    memcpy(data, ptr, length);
+    vmaUnmapMemory(driver->allocator, allocation);
+}
 
-    device->DestroyBuffer(vertexBuffer);
-
-    RenderDevice::Destroy(device);
+void VulkanBuffer::WriteMemory(size_t offset, size_t length, const void *data)
+{
+    void* ptr;
+    vmaMapMemory(driver->allocator, allocation, &ptr);
+    memcpy(ptr, data, length);
+    vmaUnmapMemory(driver->allocator, allocation);
 }

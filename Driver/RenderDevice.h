@@ -15,23 +15,23 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
+#pragma once
 
-int main()
-{
-    RenderDevice* device = RenderDevice::Create(RENDER_API_FOR_VULKAN);
+#include "Buffer.h"
 
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
+enum RenderAPI {
+    RENDER_API_FOR_VULKAN,
+};
 
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
+class RenderDevice {
+public:
+    virtual ~RenderDevice() = default;
 
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
+    virtual Buffer* CreateBuffer(size_t size, BufferUsageFlags usage) = 0;
+    virtual void DestroyBuffer(Buffer* buffer) = 0;
 
-    printf("%s\n", buf);
+public:
+    static RenderDevice* Create(const RenderAPI& renderAPI);
+    static void Destroy(RenderDevice* device);
 
-    device->DestroyBuffer(vertexBuffer);
-
-    RenderDevice::Destroy(device);
-}
+};

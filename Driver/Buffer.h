@@ -15,23 +15,22 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
+#pragma once
 
-int main()
-{
-    RenderDevice* device = RenderDevice::Create(RENDER_API_FOR_VULKAN);
+#include <Vdx/Typedef.h>
 
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
+enum BufferUsageFlags {
+    BUFFER_USAGE_VERTEX_BIT = 1 << 0,
+    BUFFER_USAGE_INDEX_BIT = 1 << 1,
+};
 
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
+class Buffer {
+public:
+    virtual ~Buffer() = default;
 
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
+    virtual size_t GetSize() = 0;
 
-    printf("%s\n", buf);
+    virtual void ReadMemory(size_t offset, size_t length, void* data) = 0;
+    virtual void WriteMemory(size_t offset, size_t length, const void* data) = 0;
 
-    device->DestroyBuffer(vertexBuffer);
-
-    RenderDevice::Destroy(device);
-}
+};
