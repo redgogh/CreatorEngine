@@ -18,7 +18,11 @@
 #pragma once
 
 #include <GLFW/glfw3.h>
+
+#ifdef WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
+#endif
+
 #include <GLFW/glfw3native.h>
 
 #include <Vdx/Typedef.h>

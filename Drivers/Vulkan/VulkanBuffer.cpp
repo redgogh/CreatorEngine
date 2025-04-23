@@ -15,27 +15,43 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#pragma once
+#include "VulkanBuffer.h"
 
-#include "Driver/Buffer.h"
+VulkanBuffer::VulkanBuffer(const VulkanDevice* _device, size_t _size, BufferUsageFlags usage)
+    : vkDevice(_device), size(_size)
+{
+    VkBufferCreateInfo bufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usage == BUFFER_USAGE_VERTEX_BIT ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
 
-#include "VulkanContext.h"
+    VmaAllocationCreateInfo allocationCreateInfo = {
+        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO,
+    };
 
-class VulkanBuffer : public Buffer {
-public:
-    VulkanBuffer(const VulkanContext* _ctx, size_t _size, BufferUsageFlags usage);
-    virtual ~VulkanBuffer() override;
+    vmaCreateBuffer(vkDevice->GetAllocator(), &bufferCreateInfo, &allocationCreateInfo, &vkBuffer, &allocation, &allocationInfo);
+}
 
-    virtual size_t GetSize() override { return size; }
-    virtual void ReadMemory(size_t offset, size_t length, void* data) override;
-    virtual void WriteMemory(size_t offset, size_t length, const void* data) override;
+VulkanBuffer::~VulkanBuffer()
+{
+    vmaDestroyBuffer(vkDevice->GetAllocator(), vkBuffer, allocation);
+}
 
-private:
-    const VulkanContext* vkContext = VK_NULL_HANDLE;
+void VulkanBuffer::ReadMemory(size_t offset, size_t length, void *data)
+{
+    void* ptr;
+    vmaMapMemory(vkDevice->GetAllocator(), allocation, &ptr);
+    memcpy(data, ptr, length);
+    vmaUnmapMemory(vkDevice->GetAllocator(), allocation);
+}
 
-    uint32_t size = 0;
-    VkBuffer vkBuffer = VK_NULL_HANDLE;
-    VmaAllocation allocation = VK_NULL_HANDLE;
-    VmaAllocationInfo allocationInfo = {};
-
-};
+void VulkanBuffer::WriteMemory(size_t offset, size_t length, const void *data)
+{
+    void* ptr;
+    vmaMapMemory(vkDevice->GetAllocator(), allocation, &ptr);
+    memcpy(ptr, data, length);
+    vmaUnmapMemory(vkDevice->GetAllocator(), allocation);
+}

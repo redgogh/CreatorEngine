@@ -15,31 +15,26 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#pragma once
+#include "VulkanRenderDevice.h"
 
-#include <Vdx/Typedef.h>
+VulkanRenderDevice::VulkanRenderDevice(const Window* _window)
+{
+    vkContext = MemoryNew<VulkanContext>(_window);
+    vkDevice = MemoryNew<VulkanDevice>(vkContext);
+}
 
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif
+VulkanRenderDevice::~VulkanRenderDevice()
+{
+    MemoryDelete(vkDevice);
+    MemoryDelete(vkContext);
+}
 
-#ifdef WIN32
-#include <windows.h>
-#endif
+Buffer *VulkanRenderDevice::CreateBuffer(size_t size, BufferUsageFlags usage)
+{
+    return MemoryNew<VulkanBuffer>(vkDevice, size, usage);
+}
 
-#include <vma/vk_mem_alloc.h>
-
-struct VulkanContext {
-    uint32_t apiVersion = 0;
-    VkInstance instance = VK_NULL_HANDLE;
-    VkSurfaceKHR surface = VK_NULL_HANDLE;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    uint32_t queueIndex = 0;
-    VkDevice device = VK_NULL_HANDLE;
-    VkQueue queue = VK_NULL_HANDLE;
-    VmaAllocator allocator = VK_NULL_HANDLE;
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-};
+void VulkanRenderDevice::DestroyBuffer(Buffer *buffer)
+{
+    return MemoryDelete(buffer);
+}

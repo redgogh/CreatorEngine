@@ -11,15 +11,15 @@ include_directories(SYSTEM include ${LIBRARY_DIRECTORIES} ${LIBRARY_DIRECTORIES}
 
 include_directories(
   ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/Modules
+  ${PROJECT_SOURCE_DIR}/Runtime
 )
 
 file(GLOB ENGINE_MODULE_SOURCES
   ${PROJECT_SOURCE_DIR}/*.cpp
-  ${PROJECT_SOURCE_DIR}/Driver/*.cpp
-  ${PROJECT_SOURCE_DIR}/Driver/Vulkan/*.cpp
+  ${PROJECT_SOURCE_DIR}/Drivers/*.cpp
+  ${PROJECT_SOURCE_DIR}/Drivers/Vulkan/*.cpp
   # -- Modules --
-  ${PROJECT_SOURCE_DIR}/Modules/Window/*.cpp
+  ${PROJECT_SOURCE_DIR}/Runtime/Window/*.cpp
   # -- ImGui --
   ${LIBRARY_DIRECTORIES}/imgui/*.cpp
   ${LIBRARY_DIRECTORIES}/imgui/backends/imgui_impl_glfw.cpp

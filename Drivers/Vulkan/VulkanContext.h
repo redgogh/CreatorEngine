@@ -17,43 +17,40 @@
 \* -------------------------------------------------------------------------------- */
 #pragma once
 
-#include "VulkanContext.h"
+#include <Vdx/Typedef.h>
 
-namespace VulkanUtils {
+#ifdef USE_VOLK_LOADER
+#  include <volk/volk.h>
+#else
+#  include <vulkan/vulkan.h>
+#endif
 
-    static VkPhysicalDevice PickDiscreteDevice(const std::vector<VkPhysicalDevice> &devices)
-    {
-        for (const auto &device: devices) {
-            VkPhysicalDeviceProperties properties;
-            vkGetPhysicalDeviceProperties(device, &properties);
+#ifdef WIN32
+#include <windows.h>
+#endif
 
-            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-                return device;
-        }
+#include <vma/vk_mem_alloc.h>
 
-        assert(std::size(devices) > 0);
-        return devices[0];
-    }
+#include "VulkanUtils.h"
+#include "Window/Window.h"
 
-    static void FindQueueIndex(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
-    {
-        uint32_t count;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, VK_NULL_HANDLE);
+#define VK_CHECK_FATAL_ERROR(msg, err)      \
+    do {                                    \
+        if (err != VK_SUCCESS)              \
+            ERROR_FATAL(msg);               \
+    } while(0)
 
-        std::vector<VkQueueFamilyProperties> properties(count);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, std::data(properties));
-
-        for (uint32_t i = 0; i < count; i++) {
-            VkQueueFamilyProperties property = properties[i];
-            VkBool32 supported = VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
-            if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supported) {
-                *p_index = i;
-                return;
-            }
-        }
-
-        ERROR_FATAL("Can't not found queue to support present");
-    }
-
-}
+class VulkanContext {
+public:
+    VulkanContext(const Window* _window);
+   ~VulkanContext();
+   
+   VkInstance GetInstance() const { return instance; }
+   VkSurfaceKHR GetSurfaceKHR() const { return surface; }
+   
+private:
+    const Window* window = VK_NULL_HANDLE;
+    uint32_t apiVersion = 0;
+    VkInstance instance = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+};

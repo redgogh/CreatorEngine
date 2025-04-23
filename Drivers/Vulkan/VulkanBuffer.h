@@ -15,20 +15,27 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "RenderDevice.h"
+#pragma once
 
-#include "Driver/Vulkan/VulkanRenderDevice.h"
+#include "Drivers/Buffer.h"
 
-RenderDevice *RenderDevice::Create(const Window* window, const RenderAPI& renderAPI)
-{
-    switch (renderAPI) {
-        case RENDER_API_FOR_VULKAN: return MemoryNew<VulkanRenderDevice>(window);
-    }
+#include "VulkanDevice.h"
 
-    throw std::runtime_error("不支持的渲染 API 后端");
-}
+class VulkanBuffer : public Buffer {
+public:
+    VulkanBuffer(const VulkanDevice* _ctx, size_t _size, BufferUsageFlags usage);
+    virtual ~VulkanBuffer() override;
 
-void RenderDevice::Destroy(RenderDevice *device)
-{
-    MemoryDelete(device);
-}
+    virtual size_t GetSize() override { return size; }
+    virtual void ReadMemory(size_t offset, size_t length, void* data) override;
+    virtual void WriteMemory(size_t offset, size_t length, const void* data) override;
+
+private:
+    const VulkanDevice* vkDevice = VK_NULL_HANDLE;
+
+    uint32_t size = 0;
+    VkBuffer vkBuffer = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
+    VmaAllocationInfo allocationInfo = {};
+
+};

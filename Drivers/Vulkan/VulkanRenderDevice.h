@@ -17,9 +17,10 @@
 \* -------------------------------------------------------------------------------- */
 #pragma once
 
-#include "Driver/RenderDevice.h"
+#include "Drivers/RenderDevice.h"
 
-#include "VulkanUtils.h"
+#include "VulkanContext.h"
+#include "VulkanDevice.h"
 #include "VulkanBuffer.h"
 
 class VulkanRenderDevice : public RenderDevice {
@@ -31,7 +32,7 @@ public:
     virtual void DestroyBuffer(Buffer* buffer) override;
 
 private:
-    const Window* window = VK_NULL_HANDLE;
     VulkanContext* vkContext = VK_NULL_HANDLE;
+    VulkanDevice* vkDevice = VK_NULL_HANDLE;
 
 };

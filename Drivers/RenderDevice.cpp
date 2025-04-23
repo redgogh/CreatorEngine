@@ -15,12 +15,20 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "VulkanContext.h"
+#include "RenderDevice.h"
 
-#ifdef USE_VOLK_LOADER
-#  define VOLK_IMPLEMENTATION
-#  include <volk/volk.h>
-#endif
+#include "Drivers/Vulkan/VulkanRenderDevice.h"
 
-#define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+RenderDevice *RenderDevice::Create(const Window* window, const RenderAPI& renderAPI)
+{
+    switch (renderAPI) {
+        case RENDER_API_FOR_VULKAN: return MemoryNew<VulkanRenderDevice>(window);
+    }
+
+    throw std::runtime_error("不支持的渲染 API 后端");
+}
+
+void RenderDevice::Destroy(RenderDevice *device)
+{
+    MemoryDelete(device);
+}

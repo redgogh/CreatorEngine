@@ -15,7 +15,7 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Driver/RenderDevice.h"
+#include "Drivers/RenderDevice.h"
 
 int main()
 {
@@ -42,10 +42,5 @@ int main()
     printf("%s\n", buf);
 
     device->DestroyBuffer(vertexBuffer);
-
-    while (!window->IsShouldClose()) {
-        window->PollEvents();
-    }
-
-    RenderDevice::Destroy(device);
+    
 }
