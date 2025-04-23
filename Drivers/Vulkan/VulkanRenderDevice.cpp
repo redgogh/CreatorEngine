@@ -58,3 +58,13 @@ void VulkanRenderDevice::DestroyCommandList(CommandList *commandList)
 {
     MemoryDelete(commandList);
 }
+
+Pipeline *VulkanRenderDevice::CreatePipeline(const PipelineCreateInfo* pPipelineCreateInfo)
+{
+
+}
+
+void VulkanRenderDevice::DestroyPipeline(Pipeline *pipeline)
+{
+
+}

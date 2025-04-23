@@ -21,6 +21,7 @@
 #include "Buffer.h"
 #include "SwapChain.h"
 #include "CommandList.h"
+#include "Pipeline.h"
 
 enum RenderAPI {
     RENDER_API_FOR_VULKAN,
@@ -36,6 +37,8 @@ public:
     virtual void DestroySwapChain(SwapChain* swpachain) = 0;
     virtual CommandList* CreateCommandList() = 0;
     virtual void DestroyCommandList(CommandList* commandList) = 0;
+    virtual Pipeline* CreatePipeline(const PipelineCreateInfo* pPipelineCreateInfo) = 0;
+    virtual void DestroyPipeline(Pipeline* pipeline) = 0;
 
 public:
     static RenderDevice* Create(const Window* window, const RenderAPI& renderAPI);

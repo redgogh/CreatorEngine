@@ -19,6 +19,51 @@
 
 #include <Vdx/Typedef.h>
 
+enum CullMode
+{
+    None,
+    Back,
+    Front,
+};
+
+enum FillMode
+{
+    Fill,
+    Line,
+    Point,
+};
+
+enum PrimitiveTopology
+{
+    PointList,
+    LineList,
+    LineStrip,
+    TriangleList,
+    TriangleStrip,
+    TriangleFan,
+};
+
+struct RasterState
+{
+    CullMode cullMode;
+    FillMode fillMode;
+    bool frontCounterClockwise;
+
+    static RasterState Default() {
+        return {
+            .cullMode = CullMode::Back,
+            .fillMode = FillMode::Fill,
+            .frontCounterClockwise = true,
+        };
+    }
+};
+
+struct PipelineCreateInfo
+{
+    RasterState* pRasterState;
+    PrimitiveTopology topology;
+};
+
 class Pipeline
 {
 public:

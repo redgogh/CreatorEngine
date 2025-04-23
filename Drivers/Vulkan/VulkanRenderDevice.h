@@ -36,6 +36,8 @@ public:
     virtual void DestroySwapChain(SwapChain* swapchain) override final;
     virtual CommandList* CreateCommandList() override final;
     virtual void DestroyCommandList(CommandList* commandList) override final;
+    virtual Pipeline* CreatePipeline(const PipelineCreateInfo* pPipelineCreateInfo) override final;
+    virtual void DestroyPipeline(Pipeline* pipeline) override final;
 
 private:
     VulkanContext* vkContext = VK_NULL_HANDLE;
