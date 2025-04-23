@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <iostream>
+#include <algorithm>
 
 #if defined(__MINGW32__)
 #  define U_MAYBE_UNUSED __attribute__((unused))

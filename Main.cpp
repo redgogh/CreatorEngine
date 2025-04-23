@@ -31,16 +31,7 @@ int main()
     std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "NATURE");
     RenderDevice* device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
 
-    Buffer* vertexBuffer = device->CreateBuffer(1024 * 4, BUFFER_USAGE_VERTEX_BIT);
-
-    const char text[] = "hello world";
-    vertexBuffer->WriteMemory(0, sizeof(text), text);
-
-    char buf[32] = {0};
-    vertexBuffer->ReadMemory(0, sizeof(text), buf);
-
-    printf("%s\n", buf);
-
-    device->DestroyBuffer(vertexBuffer);
+    SwapChain* swapchain = device->CreateSwapChain();
+    device->DestroySwapChain(swapchain);
     
 }

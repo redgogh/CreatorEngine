@@ -22,6 +22,7 @@
 #include "VulkanContext.h"
 #include "VulkanDevice.h"
 #include "VulkanBuffer.h"
+#include "VulkanSwapchain.h"
 
 class VulkanRenderDevice : public RenderDevice {
 public:
@@ -30,6 +31,8 @@ public:
 
     virtual Buffer* CreateBuffer(size_t size, BufferUsageFlags usage) override;
     virtual void DestroyBuffer(Buffer* buffer) override;
+    virtual SwapChain* CreateSwapChain() override;
+    virtual void DestroySwapChain(SwapChain* swapchain) override;
 
 private:
     VulkanContext* vkContext = VK_NULL_HANDLE;

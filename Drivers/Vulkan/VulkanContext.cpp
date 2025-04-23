@@ -43,10 +43,10 @@ VulkanContext::VulkanContext(const Window *_window) : window(_window)
      * api pointer.
      */
     err = volkInitialize();
-    VK_CHECK_FATAL_ERROR("Failed to initialize volk loader", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to initialize volk loader", err);
 
     err = vkEnumerateInstanceVersion(&apiVersion);
-    VK_CHECK_FATAL_ERROR("Can't not get instance version", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Can't not get instance version", err);
 
     printf("Vulkan %u.%u.%u\n",
            VK_VERSION_MAJOR(apiVersion),
@@ -83,7 +83,7 @@ VulkanContext::VulkanContext(const Window *_window) : window(_window)
     };
 
     err = vkCreateInstance(&instance_ci, VK_NULL_HANDLE, &instance);
-    VK_CHECK_FATAL_ERROR("Failed to create instance", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to create instance", err);
 
 #ifdef USE_VOLK_LOADER
     volkLoadInstance(instance);

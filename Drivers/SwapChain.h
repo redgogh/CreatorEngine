@@ -20,34 +20,19 @@
 
 #pragma once
 
-#include "VulkanContext.h"
+#include <Vdx/Typedef.h>
 
-class VulkanDevice {
+class SwapChain {
 public:
-    VulkanDevice(const VulkanContext* _ctx);
-   ~VulkanDevice();
-   
-   VkDevice GetDevice() const { return device; }
-   VmaAllocator GetAllocator() const { return allocator; }
-   void GetSurfaceCapabilities(VkSurfaceCapabilitiesKHR* pSurfaceCapabilitiesKHR) const;
-   VkResult PickSurfaceFormat(VkSurfaceFormatKHR *pSurfaceFormat) const;
+    virtual ~SwapChain() = default;
 
-   VkResult CreateFence(VkFence *pFence) const;
-   void DestroyFence(VkFence fence) const;
-   VkResult CreateSemaphoreVk(VkSemaphore *pSemaphore) const;
-   void DestroySemaphoreVk(VkSemaphore semaphore) const;
-   VkResult CreateImageView(VkImage image, VkFormat format, VkImageView *pImageView) const;
-   void DestroyImageView(VkImageView imageView) const;
+    virtual uint32_t GetWidth() = 0;
+    virtual uint32_t GetHeight() = 0;
+    virtual float GetAspectRatio() = 0;
+    virtual uint32_t GetCurrentImageIndex() = 0;
     
-private:
-    const VulkanContext* vkContext = VK_NULL_HANDLE;
-
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    uint32_t queueIndex = 0;
-    VkDevice device = VK_NULL_HANDLE;
-    VkQueue queue = VK_NULL_HANDLE;
-    VmaAllocator allocator = VK_NULL_HANDLE;
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    virtual void Resize(uint32_t w, uint32_t h) = 0;
+    virtual uint32_t AcquireNextImage() = 0;
+    virtual void Present() = 0;
     
 };

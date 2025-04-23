@@ -38,3 +38,13 @@ void VulkanRenderDevice::DestroyBuffer(Buffer *buffer)
 {
     return MemoryDelete(buffer);
 }
+
+SwapChain* VulkanRenderDevice::CreateSwapChain()
+{
+    return MemoryNew<VulkanSwapChain>(vkContext, vkDevice);
+}
+
+void VulkanRenderDevice::DestroySwapChain(SwapChain* swapchain)
+{
+    MemoryDelete(swapchain);
+}

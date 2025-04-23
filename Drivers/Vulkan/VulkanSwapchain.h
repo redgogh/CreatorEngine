@@ -17,25 +17,52 @@
 \* -------------------------------------------------------------------------------- */
 #pragma once
 
-#include "Window/Window.h"
-#include "Buffer.h"
-#include "SwapChain.h"
+#include "Drivers/SwapChain.h"
 
-enum RenderAPI {
-    RENDER_API_FOR_VULKAN,
-};
+#include "VulkanDevice.h"
 
-class RenderDevice {
+class VulkanSwapChain : public SwapChain {
 public:
-    virtual ~RenderDevice() = default;
+    VulkanSwapChain(const VulkanContext* _ctx, const VulkanDevice* _device);
+    virtual ~VulkanSwapChain() override;
 
-    virtual Buffer* CreateBuffer(size_t size, BufferUsageFlags usage) = 0;
-    virtual void DestroyBuffer(Buffer* buffer) = 0;
-    virtual SwapChain* CreateSwapChain() = 0;
-    virtual void DestroySwapChain(SwapChain* swpachain) = 0;
-
-public:
-    static RenderDevice* Create(const Window* window, const RenderAPI& renderAPI);
-    static void Destroy(RenderDevice* device);
-
+    virtual uint32_t GetWidth() override { return width; }
+    virtual uint32_t GetHeight() override { return height; }
+    virtual float GetAspectRatio() override { return aspectRatio; }
+    virtual uint32_t GetCurrentImageIndex() override { return acquireIndex; }
+    
+    virtual void Resize(uint32_t w, uint32_t h) override;
+    virtual uint32_t AcquireNextImage() override;
+    virtual void Present() override;
+    
+private:
+    void CreateSwapChainKHR(uint32_t w, uint32_t h);
+    void DestroySwapChainResourceKHR();
+    
+private:
+    const VulkanContext* vkContext = VK_NULL_HANDLE;
+    const VulkanDevice* vkDevice = VK_NULL_HANDLE;
+    
+    VkSurfaceCapabilitiesKHR capabilities = {};
+    
+    uint32_t width = 0;
+    uint32_t height = 0;
+    float aspectRatio = 0.0f;
+    uint32_t minImageCount = 0;
+    uint32_t acquireIndex = 0;
+    
+    VkFormat format = VK_FORMAT_UNDEFINED;
+    VkColorSpaceKHR colorSpace = VK_COLOR_SPACE_MAX_ENUM_KHR;
+    
+    VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+    
+    struct SwapChainResource {
+        VkImage image = VK_NULL_HANDLE;
+        VkImageView imageView = VK_NULL_HANDLE;
+        VkFence fence = VK_NULL_HANDLE;
+        VkSemaphore semaphore = VK_NULL_HANDLE;
+    };
+    
+    std::vector<SwapChainResource> resources;
+    
 };

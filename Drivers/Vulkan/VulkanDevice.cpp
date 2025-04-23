@@ -30,11 +30,11 @@ VulkanDevice::VulkanDevice(const VulkanContext *_ctx) : vkContext(_ctx)
     // ------------ //
 
     err = vkEnumeratePhysicalDevices(vkContext->GetInstance(), &count, VK_NULL_HANDLE);
-    VK_CHECK_FATAL_ERROR("Failed to enumerate physical device list count", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to enumerate physical device list count", err);
     
     std::vector<VkPhysicalDevice> devices(count);
     err = vkEnumeratePhysicalDevices(vkContext->GetInstance(), &count, std::data(devices));
-    VK_CHECK_FATAL_ERROR("Failed to enumerate physical device list data", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to enumerate physical device list data", err);
     
     physicalDevice = VulkanUtils::PickDiscreteDevice(devices);
     
@@ -81,7 +81,7 @@ VulkanDevice::VulkanDevice(const VulkanContext *_ctx) : vkContext(_ctx)
     };
 
     err = vkCreateDevice(physicalDevice, &device_ci, VK_NULL_HANDLE, &device);
-    VK_CHECK_FATAL_ERROR("Failed to create logic device", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to create logic device", err);
 
 #ifdef USE_VOLK_LOADER
     volkLoadDevice(device);
@@ -100,7 +100,7 @@ VulkanDevice::VulkanDevice(const VulkanContext *_ctx) : vkContext(_ctx)
     };
 
     err = vkCreateCommandPool(device, &command_pool_ci, VK_NULL_HANDLE, &commandPool);
-    VK_CHECK_FATAL_ERROR("Failed to create command pool", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to create command pool", err);
 
     // ------------------- //
     // -- VMA Allocator -- //
@@ -119,7 +119,7 @@ VulkanDevice::VulkanDevice(const VulkanContext *_ctx) : vkContext(_ctx)
     };
 
     err = vmaCreateAllocator(&allocator_ci, &allocator);
-    VK_CHECK_FATAL_ERROR("Failed to create VMA allocator", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to create VMA allocator", err);
 
     // --------------------- //
     // -- Descriptor Pool -- //
@@ -148,7 +148,7 @@ VulkanDevice::VulkanDevice(const VulkanContext *_ctx) : vkContext(_ctx)
     };
 
     err = vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, VK_NULL_HANDLE, &descriptorPool);
-    VK_CHECK_FATAL_ERROR("Failed to create descriptor pool", err);
+    VK_CHECK_FATAL_ERROR("[Vulkan] Failed to create descriptor pool", err);
 }
 
 VulkanDevice::~VulkanDevice()
@@ -157,4 +157,102 @@ VulkanDevice::~VulkanDevice()
     vkDestroyCommandPool(device, commandPool, VK_NULL_HANDLE);
     vmaDestroyAllocator(allocator);
     vkDestroyDevice(device, VK_NULL_HANDLE);
+}
+
+void VulkanDevice::GetSurfaceCapabilities(VkSurfaceCapabilitiesKHR* pSurfaceCapabilitiesKHR) const
+{
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, vkContext->GetSurfaceKHR(), pSurfaceCapabilitiesKHR);
+}
+
+VkResult VulkanDevice::PickSurfaceFormat(VkSurfaceFormatKHR *pSurfaceFormat) const
+{
+    VkResult err;
+
+    uint32_t count;
+    err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vkContext->GetSurfaceKHR(), &count, VK_NULL_HANDLE);
+    if (err)
+        return err;
+
+    std::vector<VkSurfaceFormatKHR> formats(count);
+    err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vkContext->GetSurfaceKHR(), &count, std::data(formats));
+    if (err)
+        return err;
+
+    for (const auto &item: formats) {
+        switch (item.format) {
+            case VK_FORMAT_R8G8B8A8_SRGB:
+            case VK_FORMAT_B8G8R8A8_SRGB:
+            case VK_FORMAT_R8G8B8A8_UNORM:
+            case VK_FORMAT_B8G8R8A8_UNORM: {
+                *pSurfaceFormat = item;
+                goto TAG_PICK_SUITABLE_SURFACE_FORMAT_END;
+            }
+        }
+    }
+
+    assert(count >= 1);
+    *pSurfaceFormat = formats[0];
+
+    printf("Can't not found suitable surface format, default use first\n");
+
+TAG_PICK_SUITABLE_SURFACE_FORMAT_END:
+    return VK_SUCCESS;
+}
+
+VkResult VulkanDevice::CreateFence(VkFence *pFence) const
+{
+    VkFenceCreateInfo fenceCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+    };
+
+    return vkCreateFence(device, &fenceCreateInfo, VK_NULL_HANDLE, pFence);
+}
+
+void VulkanDevice::DestroyFence(VkFence fence) const
+{
+    vkDestroyFence(device, fence, VK_NULL_HANDLE);
+}
+
+VkResult VulkanDevice::CreateSemaphoreVk(VkSemaphore *pSemaphore) const
+{
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+
+    return vkCreateSemaphore(device, &semaphoreCreateInfo, VK_NULL_HANDLE, pSemaphore);
+}
+
+void VulkanDevice::DestroySemaphoreVk(VkSemaphore semaphore) const
+{
+    vkDestroySemaphore(device, semaphore, VK_NULL_HANDLE);
+}
+
+VkResult VulkanDevice::CreateImageView(VkImage image, VkFormat format, VkImageView *pImageView) const
+{
+    VkImageViewCreateInfo image_view2d_ci = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+
+    return vkCreateImageView(device, &image_view2d_ci, VK_NULL_HANDLE, pImageView);
+}
+
+void VulkanDevice::DestroyImageView(VkImageView imageView) const
+{
+    vkDestroyImageView(device, imageView, VK_NULL_HANDLE);
 }
