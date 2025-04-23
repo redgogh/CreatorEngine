@@ -32,6 +32,16 @@ int main()
     RenderDevice* device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
 
     SwapChain* swapchain = device->CreateSwapChain();
+
+    uint32_t w = 32;
+    swapchain->Resize(w * 2, w * 2);
+    swapchain->Resize(w * 3, w * 3);
+    swapchain->Resize(w * 4, w * 4);
+    swapchain->Resize(w * 5, w * 5);
+    swapchain->Resize(w * 6, w * 6);
+
     device->DestroySwapChain(swapchain);
-    
+
+    MemoryDelete(device);
+
 }

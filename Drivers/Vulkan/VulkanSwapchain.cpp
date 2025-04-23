@@ -71,7 +71,7 @@ void VulkanSwapChain::CreateSwapChainKHR(uint32_t w, uint32_t h)
     err = vkCreateSwapchainKHR(vkDevice->GetDevice(), &swapchainCreateInfoKHR, VK_NULL_HANDLE, &newSwapChain);
     VK_CHECK_FATAL_ERROR("[Vulkan] Failed to create swap chain", err);
     
-    if (!swapchain) {
+    if (swapchain != VK_NULL_HANDLE) {
         vkDestroySwapchainKHR(vkDevice->GetDevice(), swapchain, VK_NULL_HANDLE);
     }
     
