@@ -38,7 +38,9 @@ public:
    void DestroySemaphoreVk(VkSemaphore semaphore) const;
    VkResult CreateImageView(VkImage image, VkFormat format, VkImageView *pImageView) const;
    void DestroyImageView(VkImageView imageView) const;
-    
+   VkResult AllocateCommandBuffer(VkCommandBuffer *pCommandBuffer) const;
+   void FreeCommandBuffer(VkCommandBuffer commandBuffer) const;
+
 private:
     const VulkanContext* vkContext = VK_NULL_HANDLE;
 

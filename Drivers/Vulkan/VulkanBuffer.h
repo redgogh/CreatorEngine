@@ -30,6 +30,8 @@ public:
     virtual void ReadMemory(size_t offset, size_t length, void* data) override;
     virtual void WriteMemory(size_t offset, size_t length, const void* data) override;
 
+    VkBuffer GetHandle() const;
+
 private:
     const VulkanDevice* vkDevice = VK_NULL_HANDLE;
 

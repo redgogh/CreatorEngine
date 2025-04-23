@@ -15,28 +15,12 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Drivers/RenderDevice.h"
+#pragma once
 
-int main()
+#include <Vdx/Typedef.h>
+
+class Pipeline
 {
-    system("chcp 65001 >nul");
-
-    /*
-     * close stdout and stderr write to buf, let direct
-     * output.
-     */
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-
-    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "NATURE");
-    RenderDevice* device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
-    CommandList* commandList = device->CreateCommandList();
-
-    commandList->Begin();
-    commandList->End();
-
-    device->DestroyCommandList(commandList);
-
-    MemoryDelete(device);
-
-}
+public:
+    virtual ~Pipeline() = default;
+};

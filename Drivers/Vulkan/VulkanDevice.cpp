@@ -256,3 +256,20 @@ void VulkanDevice::DestroyImageView(VkImageView imageView) const
 {
     vkDestroyImageView(device, imageView, VK_NULL_HANDLE);
 }
+
+VkResult VulkanDevice::AllocateCommandBuffer(VkCommandBuffer *pCommandBuffer) const
+{
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = commandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1
+    };
+
+    return vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, pCommandBuffer);
+}
+
+void VulkanDevice::FreeCommandBuffer(VkCommandBuffer commandBuffer) const
+{
+    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}

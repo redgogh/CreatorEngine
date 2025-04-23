@@ -15,28 +15,33 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Drivers/RenderDevice.h"
+#pragma once
 
-int main()
+#include "Drivers/CommandList.h"
+
+#include "VulkanDevice.h"
+#include "VulkanBuffer.h"
+
+class VulkanCommandList : public CommandList
 {
-    system("chcp 65001 >nul");
+public:
+    VulkanCommandList(const VulkanDevice* v_Device);
+    virtual ~VulkanCommandList() override;
 
-    /*
-     * close stdout and stderr write to buf, let direct
-     * output.
-     */
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
+    virtual void Begin() override final;
+    virtual void End() override final;
 
-    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "NATURE");
-    RenderDevice* device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
-    CommandList* commandList = device->CreateCommandList();
+    virtual void CmdBindPipeline(Pipeline* pipeline) override final;
+    virtual void CmdBindVertexBuffer(Buffer* buffer, uint32_t offset) override final;
+    virtual void CmdBindIndexBuffer(Buffer* buffer, uint32_t offset, uint32_t indexCount) override final;
+    virtual void CmdDraw(uint32_t vertexCount) override final;
+    virtual void CmdDrawIndexed(uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset) override final;
 
-    commandList->Begin();
-    commandList->End();
+    virtual void Reset() override final;
 
-    device->DestroyCommandList(commandList);
+private:
+    const VulkanDevice* device = VK_NULL_HANDLE;
 
-    MemoryDelete(device);
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
 
-}
+};

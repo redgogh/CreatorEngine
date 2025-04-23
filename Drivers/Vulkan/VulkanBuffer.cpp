@@ -55,3 +55,8 @@ void VulkanBuffer::WriteMemory(size_t offset, size_t length, const void *data)
     memcpy(ptr, data, length);
     vmaUnmapMemory(vkDevice->GetAllocator(), allocation);
 }
+
+VkBuffer VulkanBuffer::GetHandle() const
+{
+    return vkBuffer;
+}

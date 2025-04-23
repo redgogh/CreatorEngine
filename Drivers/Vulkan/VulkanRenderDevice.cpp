@@ -48,3 +48,13 @@ void VulkanRenderDevice::DestroySwapChain(SwapChain* swapchain)
 {
     MemoryDelete(swapchain);
 }
+
+CommandList *VulkanRenderDevice::CreateCommandList()
+{
+    return MemoryNew<VulkanCommandList>(vkDevice);
+}
+
+void VulkanRenderDevice::DestroyCommandList(CommandList *commandList)
+{
+    MemoryDelete(commandList);
+}

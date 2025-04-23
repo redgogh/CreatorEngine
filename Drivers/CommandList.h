@@ -15,28 +15,33 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "Drivers/RenderDevice.h"
+#pragma once
 
-int main()
+#include <Vdx/Typedef.h>
+
+#include "Buffer.h"
+#include "Pipeline.h"
+
+enum ExecuteQueue
 {
-    system("chcp 65001 >nul");
+    QUEUE_GRAPHICS,
+    QUEUE_COMPUTER,
+};
 
-    /*
-     * close stdout and stderr write to buf, let direct
-     * output.
-     */
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
+class CommandList
+{
+public:
+    virtual ~CommandList() = default;
 
-    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "NATURE");
-    RenderDevice* device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
-    CommandList* commandList = device->CreateCommandList();
+    virtual void Begin() = 0;
+    virtual void End() = 0;
 
-    commandList->Begin();
-    commandList->End();
+    virtual void CmdBindPipeline(Pipeline* pipeline) = 0;
+    virtual void CmdBindVertexBuffer(Buffer* buffer, uint32_t offset) = 0;
+    virtual void CmdBindIndexBuffer(Buffer* buffer, uint32_t offset, uint32_t indexCount) = 0;
+    virtual void CmdDraw(uint32_t vertexCount) = 0;
+    virtual void CmdDrawIndexed(uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset) = 0;
 
-    device->DestroyCommandList(commandList);
+    virtual void Reset() = 0;
 
-    MemoryDelete(device);
-
-}
+};
