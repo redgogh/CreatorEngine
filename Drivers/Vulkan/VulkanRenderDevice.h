@@ -24,6 +24,7 @@
 #include "VulkanBuffer.h"
 #include "VulkanSwapchain.h"
 #include "VulkanCommandList.h"
+#include "VulkanPipeline.h"
 
 class VulkanRenderDevice : public RenderDevice {
 public:
@@ -40,7 +41,7 @@ public:
     virtual void DestroyPipeline(Pipeline* pipeline) override final;
 
 private:
-    VulkanContext* vkContext = VK_NULL_HANDLE;
-    VulkanDevice* vkDevice = VK_NULL_HANDLE;
+    VulkanContext* context = VK_NULL_HANDLE;
+    VulkanDevice* device = VK_NULL_HANDLE;
 
 };

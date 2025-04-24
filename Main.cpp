@@ -25,18 +25,38 @@ int main()
     setvbuf(stderr, NULL, _IONBF, 0);
 
     std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "NATURE");
-    RenderDevice* device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
-
-    RasterState rasterState = RasterState::Default();
+    RenderDevice *device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
 
     PipelineCreateInfo pipelineCreateInfo = {
-        .pRasterState = &rasterState,
-        .topology = PrimitiveTopology::TriangleList,
+        .vertexBindings = {
+            {
+                .binding = 0,
+                .stride = 32,
+                .attributes = {
+                    {.location = 0, .offset =  0, .format = VertexFormat::Float3},
+                    {.location = 1, .offset = 12, .format = VertexFormat::Float2},
+                    {.location = 2, .offset = 20, .format = VertexFormat::Float3},
+                }
+            }
+        },
+        .shaderModules = {
+            {ShaderStageFlags::Vertex,   "SimpleShader.vert", true},
+            {ShaderStageFlags::Fragment, "SimpleShader.frag", true},
+        },
+        .layout = {
+            .descriptorBindings = {
+                {.set = 0, .binding = 0, .count = 1, .stages = ShaderStageFlags::Vertex, .type = DescriptorType::Sampler}
+            },
+        },
+        .assemblyState = AssemblyState::Default(),
+        .rasterState = RasterState::Default(),
+        .depthState = DepthState::Enabled(),
+        .blendState = BlendState::Disabled(),
     };
 
-    device->CreatePipeline(&pipelineCreateInfo);
+    Pipeline* pipeline = device->CreatePipeline(&pipelineCreateInfo);
 
-
+    device->DestroyPipeline(pipeline);
     RenderDevice::Destroy(device);
 
 }

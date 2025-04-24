@@ -19,19 +19,19 @@
 
 VulkanRenderDevice::VulkanRenderDevice(const Window* _window)
 {
-    vkContext = MemoryNew<VulkanContext>(_window);
-    vkDevice = MemoryNew<VulkanDevice>(vkContext);
+    context = MemoryNew<VulkanContext>(_window);
+    device = MemoryNew<VulkanDevice>(context);
 }
 
 VulkanRenderDevice::~VulkanRenderDevice()
 {
-    MemoryDelete(vkDevice);
-    MemoryDelete(vkContext);
+    MemoryDelete(device);
+    MemoryDelete(context);
 }
 
 Buffer *VulkanRenderDevice::CreateBuffer(size_t size, BufferUsageFlags usage)
 {
-    return MemoryNew<VulkanBuffer>(vkDevice, size, usage);
+    return MemoryNew<VulkanBuffer>(device, size, usage);
 }
 
 void VulkanRenderDevice::DestroyBuffer(Buffer *buffer)
@@ -41,7 +41,7 @@ void VulkanRenderDevice::DestroyBuffer(Buffer *buffer)
 
 SwapChain* VulkanRenderDevice::CreateSwapChain()
 {
-    return MemoryNew<VulkanSwapChain>(vkContext, vkDevice);
+    return MemoryNew<VulkanSwapChain>(context, device);
 }
 
 void VulkanRenderDevice::DestroySwapChain(SwapChain* swapchain)
@@ -51,7 +51,7 @@ void VulkanRenderDevice::DestroySwapChain(SwapChain* swapchain)
 
 CommandList *VulkanRenderDevice::CreateCommandList()
 {
-    return MemoryNew<VulkanCommandList>(vkDevice);
+    return MemoryNew<VulkanCommandList>(device);
 }
 
 void VulkanRenderDevice::DestroyCommandList(CommandList *commandList)
@@ -61,10 +61,10 @@ void VulkanRenderDevice::DestroyCommandList(CommandList *commandList)
 
 Pipeline *VulkanRenderDevice::CreatePipeline(const PipelineCreateInfo* pPipelineCreateInfo)
 {
-
+    return MemoryNew<VulkanPipeline>(device, pPipelineCreateInfo);
 }
 
 void VulkanRenderDevice::DestroyPipeline(Pipeline *pipeline)
 {
-
+    MemoryDelete(pipeline);
 }

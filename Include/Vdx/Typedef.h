@@ -50,3 +50,6 @@ inline static void MemoryDelete(T* ptr)
 {
     delete ptr;
 }
+
+typedef uint32_t Flags32;
+typedef uint32_t Flags64;
