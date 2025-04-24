@@ -31,6 +31,7 @@ public:
     virtual void End() = 0;
 
     virtual void CmdBindPipeline(Pipeline* pipeline) = 0;
+    virtual void CmdSetViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h) = 0;
     virtual void CmdBindVertexBuffer(Buffer* buffer, uint32_t offset) = 0;
     virtual void CmdBindIndexBuffer(Buffer* buffer, uint32_t offset, uint32_t indexCount) = 0;
     virtual void CmdDraw(uint32_t vertexCount) = 0;

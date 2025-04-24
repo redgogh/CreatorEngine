@@ -51,6 +51,20 @@ void VulkanCommandList::CmdBindPipeline(Pipeline* pipeline)
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanPipeline->GetVkPipeline());
 }
 
+void VulkanCommandList::CmdSetViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h)
+{
+    VkViewport viewport = {
+        .x = (float) x,
+        .y = (float) y,
+        .width = (float) w,
+        .height = (float) h,
+        .minDepth = 0.1f,
+        .maxDepth = 1.0f,
+    };
+    
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+}
+
 void VulkanCommandList::CmdBindVertexBuffer(Buffer* buffer, uint32_t offset)
 {
     VulkanBuffer* vkBuffer = dynamic_cast<VulkanBuffer*>(buffer);

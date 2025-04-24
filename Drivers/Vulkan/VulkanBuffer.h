@@ -26,8 +26,8 @@ public:
     virtual ~VulkanBuffer() override;
 
     virtual size_t GetSize() override { return size; }
-    virtual void ReadMemory(size_t offset, size_t length, void* data) override;
-    virtual void WriteMemory(size_t offset, size_t length, const void* data) override;
+    virtual void Upload(size_t offset, size_t length, void* data) override;
+    virtual void ReadBack(size_t offset, size_t length, const void* data) override;
 
     VkBuffer GetVkBuffer() const;
 

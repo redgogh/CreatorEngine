@@ -30,7 +30,7 @@ public:
 
     virtual size_t GetSize() = 0;
 
-    virtual void ReadMemory(size_t offset, size_t length, void* data) = 0;
-    virtual void WriteMemory(size_t offset, size_t length, const void* data) = 0;
+    virtual void Upload(size_t offset, size_t length, void* data) = 0;
+    virtual void ReadBack(size_t offset, size_t length, const void* data) = 0;
 
 };

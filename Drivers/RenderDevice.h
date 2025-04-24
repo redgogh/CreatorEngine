@@ -23,6 +23,7 @@
 #include "CommandList.h"
 #include "Pipeline.h"
 #include "Sampler.h"
+#include "Texture.h"
 
 enum RenderAPI {
     RENDER_API_FOR_VULKAN,
@@ -42,6 +43,8 @@ public:
     virtual void DestroyPipeline(Pipeline* pipeline) = 0;
     virtual Sampler* CreateSampler(SamplerCreateInfo* pSamplerCreateInfo) = 0;
     virtual void DestroySampler(Sampler* sampler) = 0;
+    virtual Texture* CreateTexture(uint32_t w, uint32_t h, Texture::Format format, Texture::Usage usage) = 0;
+    virtual void DestroyTexture(Texture* texture) = 0;
 
 public:
     static RenderDevice* Create(const Window* window, const RenderAPI& renderAPI);

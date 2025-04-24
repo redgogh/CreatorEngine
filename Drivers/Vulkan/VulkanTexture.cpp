@@ -15,48 +15,47 @@
 |*    limitations under the License.                                                *|
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
-#include "VulkanBuffer.h"
+#include "VulkanTexture.h"
 
-VulkanBuffer::VulkanBuffer(const VulkanDevice* _device, size_t _size, BufferUsageFlags usage)
-    : vkDevice(_device), size(_size)
+VulkanTexture::VulkanTexture(const VulkanDevice* _device, uint32_t w, uint32_t h, Texture::Format format, Texture::Usage usage)
+    : device(_device), width(w), height(h)
 {
-    VkBufferCreateInfo bufferCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = usage == BufferUsageFlags::Vertex ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+    this->format = ToVkFormat(format);
+    
+    VkImageCreateInfo imageCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = this->format,
+        .extent = {w, h, 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = ToVkImageUsage(usage),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
     VmaAllocationCreateInfo allocationCreateInfo = {
-        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    vmaCreateBuffer(vkDevice->GetAllocator(), &bufferCreateInfo, &allocationCreateInfo, &vkBuffer, &allocation, &allocationInfo);
+    vmaCreateImage(device->GetAllocator(), &imageCreateInfo, &allocationCreateInfo, &image, &allocation, &allocationInfo);
+    device->CreateImageView(image, this->format, &imageView);
 }
 
-VulkanBuffer::~VulkanBuffer()
+VulkanTexture::~VulkanTexture()
 {
-    vmaDestroyBuffer(vkDevice->GetAllocator(), vkBuffer, allocation);
+    vmaDestroyImage(device->GetAllocator(), image, allocation);
+    device->DestroyImageView(imageView);
 }
 
-void VulkanBuffer::Upload(size_t offset, size_t length, void *data)
+void VulkanTexture::Upload(const void *data, size_t size)
 {
-    void* ptr;
-    vmaMapMemory(vkDevice->GetAllocator(), allocation, &ptr);
-    memcpy(data, ptr, length);
-    vmaUnmapMemory(vkDevice->GetAllocator(), allocation);
+    
 }
 
-void VulkanBuffer::ReadBack(size_t offset, size_t length, const void *data)
+void VulkanTexture::ReadBack(void *dst, size_t size)
 {
-    void* ptr;
-    vmaMapMemory(vkDevice->GetAllocator(), allocation, &ptr);
-    memcpy(ptr, data, length);
-    vmaUnmapMemory(vkDevice->GetAllocator(), allocation);
-}
-
-VkBuffer VulkanBuffer::GetVkBuffer() const
-{
-    return vkBuffer;
+    
 }

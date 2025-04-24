@@ -83,8 +83,8 @@ int main()
     vertexBuffer = device->CreateBuffer(sizeof(vertices), BufferUsageFlags::Vertex);
     indexBuffer = device->CreateBuffer(sizeof(indices), BufferUsageFlags::Index);
     
-    vertexBuffer->WriteMemory(0, sizeof(vertices), vertices);
-    indexBuffer->WriteMemory(0, sizeof(indices), indices);
+    vertexBuffer->Upload(0, sizeof(vertices), vertices);
+    indexBuffer->Upload(0, sizeof(indices), indices);
     
     // 录制指令
     commandList->Begin();

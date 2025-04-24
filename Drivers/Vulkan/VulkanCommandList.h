@@ -31,6 +31,7 @@ public:
     virtual void End() override final;
 
     virtual void CmdBindPipeline(Pipeline* pipeline) override final;
+    virtual void CmdSetViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h) override final;
     virtual void CmdBindVertexBuffer(Buffer* buffer, uint32_t offset) override final;
     virtual void CmdBindIndexBuffer(Buffer* buffer, uint32_t offset, uint32_t indexCount) override final;
     virtual void CmdDraw(uint32_t vertexCount) override final;
