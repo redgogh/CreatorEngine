@@ -28,14 +28,14 @@ public:
 
     VkPipeline GetVkPipeline() const { return pipeline; }
     VkPipelineLayout GetVkPipelineLayout() const { return pipelineLayout; }
-    
+
 private:
     static VkShaderStageFlagBits ToVkShaderStageFlagBits(ShaderStageFlags stage)
     {
         switch(stage) {
             case ShaderStageFlags::Vertex: return VK_SHADER_STAGE_VERTEX_BIT;
             case ShaderStageFlags::Fragment: return VK_SHADER_STAGE_FRAGMENT_BIT;
-            default: ERROR_FATAL("[Vulkan] Unsupported Shader stage flag");
+            default: throw std::runtime_error("[Vulkan] Unsupported Shader stage flag");
         }
     }
 
@@ -43,7 +43,7 @@ private:
         switch (type) {
             case DescriptorType::Sampler: return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             case DescriptorType::UniformBuffer: return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            default: ERROR_FATAL("[Vulkan] Unsupported DescriptorType");
+            default: throw std::runtime_error("[Vulkan] Unsupported DescriptorType");
         }
     }
     
@@ -53,11 +53,12 @@ private:
             case VertexFormat::Float2: return VK_FORMAT_R32G32_SFLOAT;
             case VertexFormat::Float3: return VK_FORMAT_R32G32B32_SFLOAT;
             case VertexFormat::Float4: return VK_FORMAT_R32G32B32A32_SFLOAT;
-            default: ERROR_FATAL("[Vulkan] Unsupported VertexFormat");
+            default: throw std::runtime_error("[Vulkan] Unsupported VertexFormat");
         }
     }
 
-    VkPrimitiveTopology ToVkTopology(PrimitiveTopology topology) {
+    VkPrimitiveTopology ToVkTopology(PrimitiveTopology topology)
+    {
         switch (topology) {
             case PrimitiveTopology::PointList:     return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
             case PrimitiveTopology::LineList:      return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
@@ -65,7 +66,28 @@ private:
             case PrimitiveTopology::TriangleList:  return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
             case PrimitiveTopology::TriangleStrip: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
             case PrimitiveTopology::TriangleFan:   return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
-            default: throw std::runtime_error("Unsupported topology");
+            default: throw std::runtime_error("[Vulkan] Unsupported topology");
+        }
+    }
+
+    VkPolygonMode ToVkPolygonMode(PolygonMode polygonMode)
+    {
+        switch (polygonMode) {
+            case PolygonMode::Fill: return VK_POLYGON_MODE_FILL;
+            case PolygonMode::Line: return VK_POLYGON_MODE_LINE;
+            case PolygonMode::Point: return VK_POLYGON_MODE_POINT;
+            default: throw std::runtime_error("[Vulkan] Unsupported polygon mode");
+        }
+    }
+
+    VkCullModeFlagBits ToVkCullMode(CullMode cullMode)
+    {
+        switch (cullMode) {
+            case CullMode::None: return VK_CULL_MODE_NONE;
+            case CullMode::Back: return VK_CULL_MODE_BACK_BIT;
+            case CullMode::Front: return VK_CULL_MODE_FRONT_BIT;
+            case CullMode::FrontAndBack: return VK_CULL_MODE_FRONT_AND_BACK;
+            default: throw std::runtime_error("[Vulkan] Unsupported cull mode");
         }
     }
     

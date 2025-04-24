@@ -34,10 +34,11 @@ enum class CullMode
 { 
     None, 
     Back, 
-    Front 
+    Front,
+    FrontAndBack,
 };
 
-enum class FillMode 
+enum class PolygonMode
 {
     Fill, 
     Line, 
@@ -92,7 +93,7 @@ struct DescriptorBinding
 };
 
 /** 着色器模块 */
-struct ShaderModule
+struct ShaderInfo
 {
     ShaderStageFlags stage;
     const char* pShader;
@@ -130,11 +131,11 @@ struct BlendState
 struct RasterState
 {
     CullMode cullMode;
-    FillMode fillMode;
+    PolygonMode polygonMode;
     bool frontCCW;
     
     // -- Wrap --
-    static RasterState Default() { return { CullMode::Back, FillMode::Fill, true }; }
+    static RasterState Default() { return { CullMode::Back, PolygonMode::Fill, true }; }
     
 };
 
@@ -156,7 +157,7 @@ struct PipelineLayout
 
 struct PipelineCreateInfo {
     std::vector<VertexBinding> vertexBindings;
-    std::vector<ShaderModule> shaderModules;
+    std::vector<ShaderInfo> shaderInfos;
     PipelineLayout layout;
     AssemblyState assemblyState;
     RasterState rasterState;

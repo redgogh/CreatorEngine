@@ -17,8 +17,43 @@
 \* -------------------------------------------------------------------------------- */
 #include "VulkanPipeline.h"
 
+#include "Utils/IOUtils.h"
+
 VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreateInfo* pPipelineCreateInfo) : device(_device)
 {
+    /////////////////////////////////////////////
+    ///           Shader Module               ///
+    /////////////////////////////////////////////
+
+    std::vector<VkPipelineShaderStageCreateInfo> pipelineShaderStageCreateInfos;
+
+    for (const auto &shaderInfo: pPipelineCreateInfo->shaderInfos) {
+        VkShaderModule shaderModule = VK_NULL_HANDLE;
+        size_t size = 0;
+        char* buf = IOUtils::ReadByteBuf(shaderInfo.pShader, &size);
+
+        VkShaderModuleCreateInfo shaderModuleCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = size,
+            .pCode = (uint32_t*) buf,
+        };
+
+        vkCreateShaderModule(device->GetDevice(), &shaderModuleCreateInfo, VK_NULL_HANDLE, &shaderModule);
+
+        pipelineShaderStageCreateInfos.push_back({
+           .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+           .stage = ToVkShaderStageFlagBits(shaderInfo.stage),
+           .module = shaderModule,
+           .pName = "main",
+        });
+
+        IOUtils::FreeByteBuf(buf);
+    }
+
+    /////////////////////////////////////////////
+    ///        Descriptor Set Layout          ///
+    /////////////////////////////////////////////
+
     std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
     
     for (const auto &descriptorBinding: pPipelineCreateInfo->layout.descriptorBindings) {
@@ -38,7 +73,11 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
     };
     
     vkCreateDescriptorSetLayout(device->GetDevice(), &descriptorSetLayoutCreateInfo, VK_NULL_HANDLE, &descriptorSetLayout);
-    
+
+    /////////////////////////////////////////////
+    ///         Vertex Input Binding          ///
+    /////////////////////////////////////////////
+
     std::vector<VkVertexInputBindingDescription> vertexInputBindingDescriptions;
     std::vector<VkVertexInputAttributeDescription> vertexInputAttributeDescription;
 
@@ -72,11 +111,31 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
         .topology = ToVkTopology(pPipelineCreateInfo->assemblyState.topology)
     };
 
+    /////////////////////////////////////////////
+    ///        Rasterization Create           ///
+    /////////////////////////////////////////////
+
+    VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .polygonMode = ToVkPolygonMode(pPipelineCreateInfo->rasterState.polygonMode),
+        .cullMode = ToVkCullMode(pPipelineCreateInfo->rasterState.cullMode),
+    };
+
+    /////////////////////////////////////////////
+    ///            Pipeline Create            ///
+    /////////////////////////////////////////////
+
+    VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1,
+    };
+
     VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = VK_NULL_HANDLE,
-        .stageCount = std::size(pipelineShaderStageCreateInfo),
-        .pStages = std::data(pipelineShaderStageCreateInfo),
+        .stageCount = std::size(pipelineShaderStageCreateInfos),
+        .pStages = std::data(pipelineShaderStageCreateInfos),
         .pVertexInputState = &pipelineVertexInputStateCreateInfo,
         .pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo,
         .pViewportState = &pipelineViewportStateCreateInfo,
@@ -85,7 +144,7 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
         .pDepthStencilState = &pipelineDepthStencilStateCreateInfo,
         .pColorBlendState = &pipelineColorBlendStateCreateInfo,
         .pDynamicState = &dynamicStateCreateInfo,
-        .layout = tmp->vk_pipeline_layout,
+        .layout = &pipelineLayout,
     };
     
 }

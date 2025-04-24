@@ -20,32 +20,32 @@
 /* limitations under the License.                                           */
 /*                                                                          */
 /* ======================================================================== */
-#ifndef _VRONK_IOUTILS_H_
-#define _VRONK_IOUTILS_H_
+#pragma once
 
 #include <stdio.h>
 #include <fstream>
 
-static char *io_bytebuf_read(const char *path, size_t *size)
+namespace IOUtils
 {
-    std::ifstream file(path, std::ios::ate | std::ios::binary);
-    if (!file.is_open())
-        throw std::runtime_error("error open file failed!");
+    static char* ReadByteBuf(const char *path, size_t *size)
+    {
+        std::ifstream file(path, std::ios::ate | std::ios::binary);
+        if (!file.is_open())
+            throw std::runtime_error("error open file failed!");
 
-    *size = file.tellg();
-    file.seekg(0);
+        *size = file.tellg();
+        file.seekg(0);
 
-    /* malloc buffer */
-    char *buf = (char *) malloc(*size);
-    file.read(buf, *size);
-    file.close();
+        /* malloc buffer */
+        char *buf = (char *) malloc(*size);
+        file.read(buf, *size);
+        file.close();
 
-    return buf;
+        return buf;
+    }
+
+    static void FreeByteBuf(char *buf)
+    {
+        free(buf);
+    }
 }
-
-static void io_bytebuf_free(char *buf)
-{
-    free(buf);
-}
-
-#endif /* _VRONK_IOUTILS_H_ */

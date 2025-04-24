@@ -39,7 +39,7 @@ int main()
                 }
             }
         },
-        .shaderModules = {
+        .shaderInfos = {
             {ShaderStageFlags::Vertex,   "SimpleShader.vert", true},
             {ShaderStageFlags::Fragment, "SimpleShader.frag", true},
         },
