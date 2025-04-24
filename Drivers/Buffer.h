@@ -19,9 +19,9 @@
 
 #include <Vdx/Typedef.h>
 
-enum BufferUsageFlags {
-    BUFFER_USAGE_VERTEX_BIT = 1 << 0,
-    BUFFER_USAGE_INDEX_BIT = 1 << 1,
+enum class BufferUsageFlags {
+    Vertex = 1 << 0,
+    Index = 1 << 1,
 };
 
 class Buffer {

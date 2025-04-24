@@ -17,31 +17,13 @@
 \* -------------------------------------------------------------------------------- */
 #pragma once
 
-#include "Drivers/CommandList.h"
+#include <Vdx/Typedef.h>
 
-#include "VulkanDevice.h"
-
-class VulkanCommandList : public CommandList
-{
+class Texture {
 public:
-    VulkanCommandList(const VulkanDevice* v_Device);
-    virtual ~VulkanCommandList() override;
+    virtual ~Texture() = default;
 
-    virtual void Begin() override final;
-    virtual void End() override final;
-
-    virtual void CmdBindPipeline(Pipeline* pipeline) override final;
-    virtual void CmdBindVertexBuffer(Buffer* buffer, uint32_t offset) override final;
-    virtual void CmdBindIndexBuffer(Buffer* buffer, uint32_t offset, uint32_t indexCount) override final;
-    virtual void CmdDraw(uint32_t vertexCount) override final;
-    virtual void CmdDrawIndexed(uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset) override final;
-
-    virtual void Execute() override final;
-    virtual void Reset() override final;
-
-private:
-    const VulkanDevice* device = VK_NULL_HANDLE;
-
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    virtual size_t GetWidth() = 0;
+    virtual size_t GetHeight() = 0;
 
 };

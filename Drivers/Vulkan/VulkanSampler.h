@@ -17,31 +17,40 @@
 \* -------------------------------------------------------------------------------- */
 #pragma once
 
-#include "Drivers/CommandList.h"
-
+#include "Drivers/Sampler.h"
 #include "VulkanDevice.h"
 
-class VulkanCommandList : public CommandList
-{
+class VulkanSampler : public Sampler {
 public:
-    VulkanCommandList(const VulkanDevice* v_Device);
-    virtual ~VulkanCommandList() override;
+    VulkanSampler(const VulkanDevice* _device, SamplerCreateInfo* pSamplerCreateInfo);
+    virtual ~VulkanSampler() override;
+    
+    VkSampler GetVkSampler() const { return sampler; }
 
-    virtual void Begin() override final;
-    virtual void End() override final;
+private:
+    static VkFilter ToVkFilter(SamplerFilterFlags filter)
+    {
+        switch (filter) {
+            case SamplerFilterFlags::Linear: return VK_FILTER_LINEAR;
+            case SamplerFilterFlags::Nearest: return VK_FILTER_NEAREST;
+            default: throw std::runtime_error("[Vulkan] Unsupported filter");
+        }
+    }
 
-    virtual void CmdBindPipeline(Pipeline* pipeline) override final;
-    virtual void CmdBindVertexBuffer(Buffer* buffer, uint32_t offset) override final;
-    virtual void CmdBindIndexBuffer(Buffer* buffer, uint32_t offset, uint32_t indexCount) override final;
-    virtual void CmdDraw(uint32_t vertexCount) override final;
-    virtual void CmdDrawIndexed(uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset) override final;
+    static VkSamplerAddressMode ToVkSamplerAddressMode(SamplerAddressMode mode) {
+        switch (mode) {
+            case SamplerAddressMode::Repeat: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            case SamplerAddressMode::MirroredRepeat: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+            case SamplerAddressMode::ClampToEdge: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            case SamplerAddressMode::ClampToBorder: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+            case SamplerAddressMode::MirrorClampToEdge: return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+            default: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        }
+    }
 
-    virtual void Execute() override final;
-    virtual void Reset() override final;
 
 private:
     const VulkanDevice* device = VK_NULL_HANDLE;
 
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-
+    VkSampler sampler = VK_NULL_HANDLE;
 };

@@ -23,7 +23,7 @@ VulkanBuffer::VulkanBuffer(const VulkanDevice* _device, size_t _size, BufferUsag
     VkBufferCreateInfo bufferCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
-        .usage = usage == BUFFER_USAGE_VERTEX_BIT ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        .usage = usage == BufferUsageFlags::Vertex ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
@@ -56,7 +56,7 @@ void VulkanBuffer::WriteMemory(size_t offset, size_t length, const void *data)
     vmaUnmapMemory(vkDevice->GetAllocator(), allocation);
 }
 
-VkBuffer VulkanBuffer::GetHandle() const
+VkBuffer VulkanBuffer::GetVkBuffer() const
 {
     return vkBuffer;
 }

@@ -22,12 +22,6 @@
 #include "Buffer.h"
 #include "Pipeline.h"
 
-enum ExecuteQueue
-{
-    QUEUE_GRAPHICS,
-    QUEUE_COMPUTER,
-};
-
 class CommandList
 {
 public:
@@ -42,6 +36,7 @@ public:
     virtual void CmdDraw(uint32_t vertexCount) = 0;
     virtual void CmdDrawIndexed(uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset) = 0;
 
+    virtual void Execute() = 0;
     virtual void Reset() = 0;
 
 };

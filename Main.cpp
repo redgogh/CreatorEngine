@@ -17,6 +17,18 @@
 \* -------------------------------------------------------------------------------- */
 #include "Drivers/RenderDevice.h"
 
+float vertices[] = {
+    -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
+     0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+     0.5f,  0.5f, 0.0f, 1.0f, 1.0f,
+    -0.5f,  0.5f, 0.0f, 0.0f, 1.0f,
+};
+
+uint32_t indices[] = {
+    0, 1, 2,
+    2, 3, 0,
+};
+
 int main()
 {
     system("chcp 65001 >nul");
@@ -24,8 +36,16 @@ int main()
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "NATURE");
-    RenderDevice *device = RenderDevice::Create(window.get(), RENDER_API_FOR_VULKAN);
+    Window* window;
+    RenderDevice *device;
+    Pipeline *pipeline;
+    CommandList* commandList;
+    Buffer* vertexBuffer;
+    Buffer* indexBuffer;
+
+    window = MemoryNew<Window>(800, 600, "NATURE");
+    device = RenderDevice::Create(window, RENDER_API_FOR_VULKAN);
+    commandList = device->CreateCommandList();
 
     PipelineCreateInfo pipelineCreateInfo = {
         .vertexBindings = {
@@ -40,23 +60,46 @@ int main()
             }
         },
         .shaderInfos = {
-            {ShaderStageFlags::Vertex,   "SimpleShader.vert", true},
-            {ShaderStageFlags::Fragment, "SimpleShader.frag", true},
+            {.stage = ShaderStageFlags::Vertex, .pShader = "SimpleShader.vert", .enableHotReload = true},
+            {.stage = ShaderStageFlags::Fragment, .pShader = "SimpleShader.frag", .enableHotReload = true},
         },
         .layout = {
             .descriptorBindings = {
                 {.set = 0, .binding = 0, .count = 1, .stages = ShaderStageFlags::Vertex, .type = DescriptorType::Sampler}
             },
+            .pushConstantRanges = {
+                {ShaderStageFlags::Vertex, 0, 32}
+            }
         },
         .assemblyState = AssemblyState::Default(),
         .rasterState = RasterState::Default(),
         .depthState = DepthState::Enabled(),
         .blendState = BlendState::Disabled(),
+        .multisampleState = MultisampleState::MSAA4x()
     };
 
-    Pipeline* pipeline = device->CreatePipeline(&pipelineCreateInfo);
+    pipeline = device->CreatePipeline(&pipelineCreateInfo);
 
+    vertexBuffer = device->CreateBuffer(sizeof(vertices), BufferUsageFlags::Vertex);
+    indexBuffer = device->CreateBuffer(sizeof(indices), BufferUsageFlags::Index);
+    
+    vertexBuffer->WriteMemory(0, sizeof(vertices), vertices);
+    indexBuffer->WriteMemory(0, sizeof(indices), indices);
+    
+    // 录制指令
+    commandList->Begin();
+    commandList->CmdBindPipeline(pipeline);
+    commandList->CmdBindVertexBuffer(vertexBuffer, 0);
+    commandList->CmdBindIndexBuffer(indexBuffer, 0, sizeof(indices) / sizeof(uint32_t));
+    commandList->CmdDrawIndexed(sizeof(indices) / sizeof(uint32_t), 0, 0);
+    commandList->End();
+
+    // 执行并复用 Command Buffer
+    commandList->Execute();
+    commandList->Reset();
+    
     device->DestroyPipeline(pipeline);
     RenderDevice::Destroy(device);
-
+    MemoryDelete(window);
+    
 }

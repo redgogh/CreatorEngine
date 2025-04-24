@@ -18,19 +18,18 @@
 #pragma once
 
 #include "Drivers/Buffer.h"
-
 #include "VulkanDevice.h"
 
 class VulkanBuffer : public Buffer {
 public:
-    VulkanBuffer(const VulkanDevice* _ctx, size_t _size, BufferUsageFlags usage);
+    VulkanBuffer(const VulkanDevice* _device, size_t _size, BufferUsageFlags usage);
     virtual ~VulkanBuffer() override;
 
     virtual size_t GetSize() override { return size; }
     virtual void ReadMemory(size_t offset, size_t length, void* data) override;
     virtual void WriteMemory(size_t offset, size_t length, const void* data) override;
 
-    VkBuffer GetHandle() const;
+    VkBuffer GetVkBuffer() const;
 
 private:
     const VulkanDevice* vkDevice = VK_NULL_HANDLE;

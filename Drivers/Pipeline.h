@@ -58,8 +58,10 @@ enum class PrimitiveTopology
 enum class DescriptorType
 {
     UniformBuffer,
-    Sampler,
     StorageBuffer,
+    Sampler,
+    SamplerImage,
+    StorageImage,
 };
 
 enum class VertexFormat
@@ -67,6 +69,16 @@ enum class VertexFormat
     Float2,
     Float3,
     Float4,
+};
+
+enum class SampleCount
+{
+    X0  =  0,
+    X1  =  1,
+    X2  =  2,
+    X4  =  4,
+    X8  =  8,
+    X16 = 16,
 };
 
 struct VertexAttribute
@@ -97,8 +109,8 @@ struct ShaderInfo
 {
     ShaderStageFlags stage;
     const char* pShader;
-    // 如果 isDynamicLoader 启用则会运行时动态热加载着色器
-    bool isDynamicLoader; 
+    // 如果 enableHotReload 启用则会运行时动态热加载着色器
+    bool enableHotReload; 
 };
 
 /** 深度测试 */
@@ -149,10 +161,31 @@ struct AssemblyState
     
 };
 
+/** 多重采样 */
+struct MultisampleState
+{
+    SampleCount sampleCount;
+    bool enableSampleShading;
+
+    // -- Wrap --
+    static MultisampleState Disabled() { return { SampleCount::X0, false }; }
+    static MultisampleState MSAA4x()   { return { SampleCount::X4, false }; }
+    static MultisampleState MSAA8x()   { return { SampleCount::X8, false }; }
+    
+};
+
+struct PushConstantRange
+{
+    ShaderStageFlags stageFlags;
+    uint32_t offset;
+    uint32_t size;
+};
+
 /** 管线布局 */
 struct PipelineLayout
 {
     std::vector<DescriptorBinding> descriptorBindings;
+    std::vector<PushConstantRange> pushConstantRanges;
 };
 
 struct PipelineCreateInfo {
@@ -163,9 +196,26 @@ struct PipelineCreateInfo {
     RasterState rasterState;
     DepthState depthState;
     BlendState blendState;
+    MultisampleState multisampleState;
 };
 
 class Pipeline {
 public:
     virtual ~Pipeline() = default;
+
+    struct BindingData {
+        uint32_t set;
+        uint32_t binding;
+        DescriptorType type;
+        union {
+            void* buffer;
+            void* image;
+            void* sampler;
+        };
+        uint32_t offset = 0;
+        uint32_t range = 0;
+    };
+    
+    virtual void UpdateBinding(const BindingData data) = 0;
+    
 };

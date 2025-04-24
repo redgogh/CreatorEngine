@@ -16,6 +16,11 @@
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
 #include "VulkanRenderDevice.h"
+#include "VulkanBuffer.h"
+#include "VulkanSwapchain.h"
+#include "VulkanCommandList.h"
+#include "VulkanPipeline.h"
+#include "VulkanSampler.h"
 
 VulkanRenderDevice::VulkanRenderDevice(const Window* _window)
 {
@@ -67,4 +72,14 @@ Pipeline *VulkanRenderDevice::CreatePipeline(const PipelineCreateInfo* pPipeline
 void VulkanRenderDevice::DestroyPipeline(Pipeline *pipeline)
 {
     MemoryDelete(pipeline);
+}
+
+Sampler *VulkanRenderDevice::CreateSampler(SamplerCreateInfo *pSamplerCreateInfo)
+{
+    return MemoryNew<VulkanSampler>(pSamplerCreateInfo);
+}
+
+void VulkanRenderDevice::DestroySampler(Sampler *sampler)
+{
+    return MemoryDelete(sampler);
 }

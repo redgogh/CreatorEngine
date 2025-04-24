@@ -40,6 +40,8 @@ public:
    void DestroyImageView(VkImageView imageView) const;
    VkResult AllocateCommandBuffer(VkCommandBuffer *pCommandBuffer) const;
    void FreeCommandBuffer(VkCommandBuffer commandBuffer) const;
+   VkResult AllocateDescriptorSet(VkDescriptorSetLayout layout, VkDescriptorSet* pDescriptorSet) const;
+   void FreeDescriptorSet(VkDescriptorSet descriptorSet) const;
 
 private:
     const VulkanContext* vkContext = VK_NULL_HANDLE;

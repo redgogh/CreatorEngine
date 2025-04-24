@@ -29,6 +29,20 @@ public:
     VkPipeline GetVkPipeline() const { return pipeline; }
     VkPipelineLayout GetVkPipelineLayout() const { return pipelineLayout; }
 
+    virtual void UpdateBinding(const BindingData data) override final;
+    
+private:
+    struct DescriptorSetInfo {
+        VkDescriptorSetLayout layout;
+        VkDescriptorSet descriptorSet;
+        bool allocated;
+    };
+    
+    struct DescriptorSetLayoutInfo {
+        uint32_t setIndex;
+        std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+    };
+    
 private:
     static VkShaderStageFlagBits ToVkShaderStageFlagBits(ShaderStageFlags stage)
     {
@@ -41,9 +55,10 @@ private:
 
     VkDescriptorType ToVkDescriptorType(DescriptorType type) {
         switch (type) {
-            case DescriptorType::Sampler: return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             case DescriptorType::UniformBuffer: return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            default: throw std::runtime_error("[Vulkan] Unsupported DescriptorType");
+            case DescriptorType::Sampler: return VK_DESCRIPTOR_TYPE_SAMPLER;
+            case DescriptorType::StorageBuffer: return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            default: throw std::runtime_error("[Vulkan] Unsupported descriptor type");
         }
     }
     
@@ -91,11 +106,26 @@ private:
         }
     }
     
+    static VkSampleCountFlagBits ToVkSampleCount(SampleCount sampleCount)
+    {
+        switch (sampleCount) {
+            case SampleCount::X1:  return VK_SAMPLE_COUNT_1_BIT;
+            case SampleCount::X2:  return VK_SAMPLE_COUNT_2_BIT;
+            case SampleCount::X4:  return VK_SAMPLE_COUNT_4_BIT;
+            case SampleCount::X8:  return VK_SAMPLE_COUNT_8_BIT;
+            case SampleCount::X16: return VK_SAMPLE_COUNT_16_BIT;
+            default: throw std::runtime_error("[Vulkan] Unsupported sample count");
+        }
+    }
+    
 private:
     const VulkanDevice* device = VK_NULL_HANDLE;
 
-    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+    std::unordered_map<uint32_t, VkDescriptorSetLayout> descriptorSetLayouts;
     VkPipeline pipeline = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    
+
+    std::vector<DescriptorSetInfo> descriptorSets;
+
+
 };

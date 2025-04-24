@@ -16,7 +16,9 @@
 |*                                                                                  *|
 \* -------------------------------------------------------------------------------- */
 #include "VulkanPipeline.h"
-
+#include "VulkanBuffer.h"
+#include "VulkanTexture.h"
+#include "VulkanSampler.h"
 #include "Utils/IOUtils.h"
 
 VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreateInfo* pPipelineCreateInfo) : device(_device)
@@ -54,7 +56,7 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
     ///        Descriptor Set Layout          ///
     /////////////////////////////////////////////
 
-    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+    std::unordered_map<uint32_t, DescriptorSetLayoutInfo> descriptorSetLayoutInfos;
     
     for (const auto &descriptorBinding: pPipelineCreateInfo->layout.descriptorBindings) {
         VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = {};
@@ -63,17 +65,52 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
         descriptorSetLayoutBinding.descriptorCount = descriptorBinding.count;
         descriptorSetLayoutBinding.stageFlags = ToVkShaderStageFlagBits(descriptorBinding.stages);
         descriptorSetLayoutBinding.pImmutableSamplers = VK_NULL_HANDLE;
-        descriptorSetLayoutBindings.push_back(descriptorSetLayoutBinding);
+
+        DescriptorSetLayoutInfo& descriptorSetLayoutInfo = descriptorSetLayoutInfos[descriptorBinding.set];
+        descriptorSetLayoutInfo.descriptorSetLayoutBindings.push_back(descriptorSetLayoutBinding);
+    }
+
+    for (const auto &pair: descriptorSetLayoutInfos) {
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = static_cast<uint32_t>(std::size(pair.second.descriptorSetLayoutBindings)),
+            .pBindings = std::data(pair.second.descriptorSetLayoutBindings)
+        };
+
+        VkDescriptorSetLayout descriptorSetLayout;
+        vkCreateDescriptorSetLayout(device->GetDevice(), &descriptorSetLayoutCreateInfo, VK_NULL_HANDLE, &descriptorSetLayout);
+        descriptorSetLayouts[pair.second.setIndex] = descriptorSetLayout;   
     }
     
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(std::size(descriptorSetLayoutBindings)),
-        .pBindings = std::data(descriptorSetLayoutBindings)
-    };
+    /////////////////////////////////////////////
+    ///        Pipeline Layout Binding        ///
+    /////////////////////////////////////////////
     
-    vkCreateDescriptorSetLayout(device->GetDevice(), &descriptorSetLayoutCreateInfo, VK_NULL_HANDLE, &descriptorSetLayout);
+    std::vector<VkPushConstantRange> pushConstantRanges;
 
+    for (const auto &range: pPipelineCreateInfo->layout.pushConstantRanges) {
+        pushConstantRanges.push_back({
+            .stageFlags = ToVkShaderStageFlagBits(range.stageFlags),
+            .offset = range.offset,
+            .size = range.size
+        });
+    }
+    
+    std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
+    for (auto& [_, value] : descriptorSetLayouts) {
+        _descriptorSetLayouts.push_back(value);
+    }
+
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = static_cast<uint32_t>(std::size(_descriptorSetLayouts)),
+        .pSetLayouts = std::data(_descriptorSetLayouts),
+        .pushConstantRangeCount = static_cast<uint32_t>(std::size(pushConstantRanges)),
+        .pPushConstantRanges = std::data(pushConstantRanges),
+    };
+
+    vkCreatePipelineLayout(device->GetDevice(), &pipelineLayoutCreateInfo, VK_NULL_HANDLE, &pipelineLayout);
+    
     /////////////////////////////////////////////
     ///         Vertex Input Binding          ///
     /////////////////////////////////////////////
@@ -112,6 +149,16 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
     };
 
     /////////////////////////////////////////////
+    ///         Viewport State Create         ///
+    /////////////////////////////////////////////
+
+    VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1,
+    };
+    
+    /////////////////////////////////////////////
     ///        Rasterization Create           ///
     /////////////////////////////////////////////
 
@@ -122,19 +169,75 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
     };
 
     /////////////////////////////////////////////
-    ///            Pipeline Create            ///
+    ///          Multisample Create           ///
+    /////////////////////////////////////////////
+    
+    VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = ToVkSampleCount(pPipelineCreateInfo->multisampleState.sampleCount),
+        .sampleShadingEnable = pPipelineCreateInfo->multisampleState.enableSampleShading ? VK_TRUE : VK_FALSE,
+        
+    };
+
+    /////////////////////////////////////////////
+    ///         DepthStencil Create           ///
+    /////////////////////////////////////////////
+    
+    VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = pPipelineCreateInfo->depthState.depthTest ? VK_TRUE : VK_FALSE,
+        .depthWriteEnable = pPipelineCreateInfo->depthState.depthWrite ? VK_TRUE : VK_FALSE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+        .minDepthBounds = pPipelineCreateInfo->depthState.minDepth,
+        .maxDepthBounds = pPipelineCreateInfo->depthState.maxDepth,
+    };
+
+    /////////////////////////////////////////////
+    ///         Color Blend Create           ///
+    /////////////////////////////////////////////
+    
+    VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState = {
+        .blendEnable = pPipelineCreateInfo->blendState.enabled ? VK_TRUE : VK_FALSE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                          VK_COLOR_COMPONENT_G_BIT |
+                          VK_COLOR_COMPONENT_B_BIT |
+                          VK_COLOR_COMPONENT_A_BIT
+    };
+    
+    VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable = VK_FALSE,
+        .attachmentCount = 1,
+        .pAttachments = &pipelineColorBlendAttachmentState,
+    };
+
+    /////////////////////////////////////////////
+    ///         Dynamic State Create          ///
     /////////////////////////////////////////////
 
-    VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
+    VkDynamicState dynamicStates[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = std::size(dynamicStates),
+        .pDynamicStates = std::data(dynamicStates),
     };
 
     VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = VK_NULL_HANDLE,
-        .stageCount = std::size(pipelineShaderStageCreateInfos),
+        .stageCount = static_cast<uint32_t>(std::size(pipelineShaderStageCreateInfos)),
         .pStages = std::data(pipelineShaderStageCreateInfos),
         .pVertexInputState = &pipelineVertexInputStateCreateInfo,
         .pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo,
@@ -144,12 +247,69 @@ VulkanPipeline::VulkanPipeline(const VulkanDevice* _device, const PipelineCreate
         .pDepthStencilState = &pipelineDepthStencilStateCreateInfo,
         .pColorBlendState = &pipelineColorBlendStateCreateInfo,
         .pDynamicState = &dynamicStateCreateInfo,
-        .layout = &pipelineLayout,
+        .layout = pipelineLayout,
     };
+    
+    vkCreateGraphicsPipelines(device->GetDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, &pipeline);
+    
+    /* TODO 删除 ShaderModule */
     
 }
 
 VulkanPipeline::~VulkanPipeline()
 {
+    for (const auto &pair: descriptorSetLayouts)
+        vkDestroyDescriptorSetLayout(device->GetDevice(), pair.second, VK_NULL_HANDLE);
+    vkDestroyPipelineLayout(device->GetDevice(), pipelineLayout, VK_NULL_HANDLE);
+    vkDestroyPipeline(device->GetDevice(), pipeline, VK_NULL_HANDLE);
+}
+
+void VulkanPipeline::UpdateBinding(const Pipeline::BindingData data)
+{
+    DescriptorSetInfo& descriptorSetInfo = descriptorSets[data.set];
     
+    if (!descriptorSetInfo.allocated) {
+        device->AllocateDescriptorSet(descriptorSetLayouts[data.set], &descriptorSetInfo.descriptorSet);
+        descriptorSetInfo.layout = descriptorSetLayouts[data.set];
+        descriptorSetInfo.allocated = true;
+    }
+    
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptorSetInfo.descriptorSet,
+        .dstBinding = data.binding,
+        .descriptorCount = 1,
+        .descriptorType = ToVkDescriptorType(data.type),
+    };
+    
+    VkDescriptorBufferInfo descriptorBufferInfo = {};
+    VkDescriptorImageInfo descriptorImageInfo = {};
+    
+    switch (data.type) {
+        case DescriptorType::UniformBuffer:
+        case DescriptorType::StorageBuffer: {
+            VulkanBuffer* vulkanBuffer = (VulkanBuffer*) data.buffer;
+            descriptorBufferInfo.buffer = vulkanBuffer->GetVkBuffer();
+            descriptorBufferInfo.offset = data.offset;
+            descriptorBufferInfo.range = data.range <= 0 ? VK_WHOLE_SIZE : data.range;
+            write.pBufferInfo = &descriptorBufferInfo;
+            break;
+        }
+
+        case DescriptorType::SamplerImage:
+        case DescriptorType::StorageImage: {
+            VulkanTexture* vulkanTexture = (VulkanTexture*) data.image;
+            descriptorImageInfo.imageView = vulkanTexture->GetVkImageView();
+            write.pImageInfo = &descriptorImageInfo;
+            break;
+        }
+        
+        case DescriptorType::Sampler: {
+            VulkanSampler* vulkanSampler = (VulkanSampler*) data.image;
+            descriptorImageInfo.sampler = vulkanSampler->GetVkSampler();
+            break;
+        }
+    }
+    
+    vkUpdateDescriptorSets(device->GetDevice(), 1, &write, 0, VK_NULL_HANDLE);
 }

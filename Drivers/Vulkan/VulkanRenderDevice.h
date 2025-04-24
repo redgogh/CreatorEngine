@@ -21,16 +21,12 @@
 
 #include "VulkanContext.h"
 #include "VulkanDevice.h"
-#include "VulkanBuffer.h"
-#include "VulkanSwapchain.h"
-#include "VulkanCommandList.h"
-#include "VulkanPipeline.h"
 
 class VulkanRenderDevice : public RenderDevice {
 public:
     VulkanRenderDevice(const Window* _window);
     virtual ~VulkanRenderDevice() override;
-
+    
     virtual Buffer* CreateBuffer(size_t size, BufferUsageFlags usage) override final;
     virtual void DestroyBuffer(Buffer* buffer) override final;
     virtual SwapChain* CreateSwapChain() override final;
@@ -39,7 +35,9 @@ public:
     virtual void DestroyCommandList(CommandList* commandList) override final;
     virtual Pipeline* CreatePipeline(const PipelineCreateInfo* pPipelineCreateInfo) override final;
     virtual void DestroyPipeline(Pipeline* pipeline) override final;
-
+    virtual Sampler* CreateSampler(SamplerCreateInfo* pSamplerCreateInfo) override final;
+    virtual void DestroySampler(Sampler* sampler) override final;
+    
 private:
     VulkanContext* context = VK_NULL_HANDLE;
     VulkanDevice* device = VK_NULL_HANDLE;

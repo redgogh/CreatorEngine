@@ -17,6 +17,9 @@
 \* -------------------------------------------------------------------------------- */
 #include "VulkanCommandList.h"
 
+#include "VulkanBuffer.h"
+#include "VulkanPipeline.h"
+
 VulkanCommandList::VulkanCommandList(const VulkanDevice* _device) : device(_device)
 {
     device->AllocateCommandBuffer(&commandBuffer);
@@ -42,16 +45,16 @@ void VulkanCommandList::End()
     vkEndCommandBuffer(commandBuffer);
 }
 
-
 void VulkanCommandList::CmdBindPipeline(Pipeline* pipeline)
 {
-
+    VulkanPipeline* vulkanPipeline = (VulkanPipeline*) pipeline;
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanPipeline->GetVkPipeline());
 }
 
 void VulkanCommandList::CmdBindVertexBuffer(Buffer* buffer, uint32_t offset)
 {
     VulkanBuffer* vkBuffer = dynamic_cast<VulkanBuffer*>(buffer);
-    VkBuffer buffers[] = { vkBuffer->GetHandle() };
+    VkBuffer buffers[] = { vkBuffer->GetVkBuffer() };
     VkDeviceSize offsets[] = { offset };
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
 }
@@ -59,7 +62,7 @@ void VulkanCommandList::CmdBindVertexBuffer(Buffer* buffer, uint32_t offset)
 void VulkanCommandList::CmdBindIndexBuffer(Buffer* buffer, uint32_t offset, uint32_t indexCount)
 {
     VulkanBuffer* vkBuffer = dynamic_cast<VulkanBuffer*>(buffer);
-    vkCmdBindIndexBuffer(commandBuffer, vkBuffer->GetHandle(), offset, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(commandBuffer, vkBuffer->GetVkBuffer(), offset, VK_INDEX_TYPE_UINT32);
 }
 
 void VulkanCommandList::CmdDraw(uint32_t vertexCount)
@@ -70,7 +73,11 @@ void VulkanCommandList::CmdDraw(uint32_t vertexCount)
 void VulkanCommandList::CmdDrawIndexed(uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset)
 {
     vkCmdDrawIndexed(commandBuffer, indexCount, 1, indexOffset, vertexOffset, 0);
+}
 
+void VulkanCommandList::Execute()
+{
+    
 }
 
 void VulkanCommandList::Reset()

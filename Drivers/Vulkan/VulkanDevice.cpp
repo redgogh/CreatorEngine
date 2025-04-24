@@ -273,3 +273,20 @@ void VulkanDevice::FreeCommandBuffer(VkCommandBuffer commandBuffer) const
 {
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
+
+VkResult VulkanDevice::AllocateDescriptorSet(VkDescriptorSetLayout layout, VkDescriptorSet *pDescriptorSet) const
+{
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = descriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &layout,
+    };
+    
+    return vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, pDescriptorSet);
+}
+
+void VulkanDevice::FreeDescriptorSet(VkDescriptorSet descriptorSet) const
+{
+    vkFreeDescriptorSets(device, descriptorPool, 1, &descriptorSet);
+}
