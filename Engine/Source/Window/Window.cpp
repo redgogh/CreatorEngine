@@ -18,57 +18,26 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#ifdef USE_VOLK_LOADER
-#  define VOLK_IMPLEMENTATION
-#endif /* USE_VOLK_LOADER */
+#include "Window.h"
 
-#define VMA_IMPLEMENTATION
-
-#include "RenderDevice.h"
-
-RenderDevice::RenderDevice()
+Window::Window(const char *title, uint32_t w, uint32_t h)
 {
-    VkResult err;
-    
-#ifdef USE_VOLK_LOADER
-    err = volkInitialize();
-    assert(err != VK_SUCCESS && "volkInitialize() != VK_SUCCESS");
-#endif /* USE_VOLK_LOADER */
-
-    vkEnumerateInstanceVersion(&apiVersion);
-    
-    VkApplicationInfo applicationInfo = {
-        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = "Veronak Engine",
-        .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = "Veronak Engine",
-        .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-        .apiVersion = this->apiVersion
-    };
-
-    uint32_t count;
-    std::vector<const char *> extensions;
-
-    std::vector<const char *> layers = {
-        "VK_LAYER_KHRONOS_validation"
-    };
-
-    VkInstanceCreateInfo instanceCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pApplicationInfo = &applicationInfo,
-        .enabledLayerCount = (uint32_t) std::size(layers),
-        .ppEnabledLayerNames = std::data(layers),
-        .enabledExtensionCount = (uint32_t) std::size(extensions),
-        .ppEnabledExtensionNames = std::data(extensions),
-
-    };
-
-    err = vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &instance);
-    assert(err != VK_SUCCESS && "vkCreateInstance() != VK_SUCCESS");
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    hwnd = glfwCreateWindow(w, h, title, nullptr, nullptr);
 }
 
-RenderDevice::~RenderDevice()
+Window::~Window()
 {
-    vkDestroyInstance(instance, VK_NULL_HANDLE);
+    glfwDestroyWindow(hwnd);
 }
 
+bool Window::IsShouldClose()
+{
+    return glfwWindowShouldClose(hwnd);
+}
+
+void Window::PollEvents()
+{
+    glfwPollEvents();
+}

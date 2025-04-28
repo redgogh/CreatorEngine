@@ -18,15 +18,20 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#include <Engine/Engine.h>
+#pragma once
 
-int main()
+#include <GLFW/glfw3.h>
+
+class Window
 {
-    auto window = std::make_unique<Window>("VernakEngine", 800, 600);
-    auto driver = std::make_unique<RenderDevice>(window.get());
+public:
+    Window(const char *title, uint32_t w, uint32_t h);
+   ~Window();
+
+    bool IsShouldClose();
+   
+    void PollEvents();
     
-    while (!window->IsShouldClose()) {
-        window->PollEvents();
-    }
-    
-}
+private:
+    GLFWwindow *hwnd = nullptr;
+};

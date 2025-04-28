@@ -29,14 +29,21 @@
 #include <vma/vk_mem_alloc.h>
 
 #include "Typedefs.h"
+#include "Window/Window.h"
 
 class RenderDevice
 {
 public:
-    RenderDevice();
+    RenderDevice(Window *vWindow);
    ~RenderDevice();
    
 private:
+    void _InitVkInstance();
+    void _InitVkSurfaceKHR();
+   
+private:
+    Window *window = VK_NULL_HANDLE;
+    
     uint32_t apiVersion = 0;
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
