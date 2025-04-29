@@ -20,18 +20,51 @@
 
 #pragma once
 
-#include <GLFW/glfw3.h>
+#ifdef USE_VOLK_LOADER
+#  include <volk/volk.h>
+#else
+#  include <vulkan/vulkan.h>
+#endif /* USE_VOLK_LOADER */
 
-class Window
+#include <vma/vk_mem_alloc.h>
+
+#include "Window/Window.h"
+
+class RenderDevice
 {
 public:
-    Window(const char *title, uint32_t w, uint32_t h);
-   ~Window();
+    RenderDevice(Window* pWindow);
+   ~RenderDevice();
 
-    bool IsShouldClose();
-   
-    void PollEvents();
+    struct BufferInfo {
+        VkBuffer vkBuffer = VK_NULL_HANDLE;
+        VkDeviceSize size = 0;
+        VmaAllocation allocation = VK_NULL_HANDLE;
+        VmaAllocationInfo allocationInfo = {};
+    };
     
+    BufferInfo* CreateBuffer(size_t size, VkBufferUsageFlags usage);
+    void DestroyBuffer(BufferInfo* buffer);
+   
 private:
-    GLFWwindow *hwnd = nullptr;
+    void _InitVkInstance();
+    void _InitVkSurfaceKHR();
+    void _InitVKDevice();
+    void _InitVMAAllocator();
+    void _InitVkCommandPool();
+    void _InitVkDescriptorPool();
+   
+private:
+    Window *window = VK_NULL_HANDLE;
+    
+    uint32_t apiVersion = 0;
+    VkInstance instance = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    uint32_t queueIndex = 0;
+    VkQueue queue = VK_NULL_HANDLE;
+    VkDevice device = VK_NULL_HANDLE;
+    VmaAllocator allocator = VK_NULL_HANDLE;
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 };

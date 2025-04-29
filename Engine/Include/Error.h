@@ -18,26 +18,15 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#include "Window.h"
+#pragma once
 
-Window::Window(const char *title, uint32_t w, uint32_t h)
-{
-    glfwInit();
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    hwnd = glfwCreateWindow(w, h, title, nullptr, nullptr);
-}
+#include <cassert>
+#include <stdexcept>
 
-Window::~Window()
-{
-    glfwDestroyWindow(hwnd);
-}
+#ifdef NDEBUG
+#  define GOGH_ASSERT(...) ((void*)0)
+#else
+#  define GOGH_ASSERT(...) assert(__VA_ARGS__)
+#endif
 
-bool Window::IsShouldClose()
-{
-    return glfwWindowShouldClose(hwnd);
-}
-
-void Window::PollEvents()
-{
-    glfwPollEvents();
-}
+#define GOGH_ERROR(...) throw std::runtime_error(std::format(__VA_ARGS__))

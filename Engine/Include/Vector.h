@@ -18,24 +18,29 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#include <Engine/Engine.h>
+#pragma once
 
-int main()
-{
-    system("chcp 65001 >nul");
+#include <vector>
 
-    /*
-     * close stdout and stderr write to buf, let direct
-     * output.
-     */
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-    
-    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "GoghEngine");
-    std::unique_ptr<RenderDevice> renderDevice = std::make_unique<RenderDevice>(window.get());
-    
-    while (!window->IsShouldClose()) {
-        window->PollEvents();
-    }
-    
-}
+template<typename T>
+class Vector : public std::vector<T> {
+public:
+    using std::vector<T>::vector;
+
+    void contains(const T& elem)
+      {
+        return std::find(this->begin(), this->end(), elem) != this->end();
+      }
+
+    void remove(const T& elem)
+      {
+        this->erase(std::remove(this->begin(), this->end(), elem), this->end());
+      }
+
+    T* find_ptr(const T& elem)
+      {
+        auto it = std::find(this->begin(), this->end(), elem);
+        return it != this->end() ? &(*it) : nullptr;
+      }
+
+};

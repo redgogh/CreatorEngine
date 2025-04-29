@@ -18,24 +18,42 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#include <Engine/Engine.h>
+#define VK_ERROR_CHECK(err, msg) GOGH_ASSERT(err == VK_SUCCESS && msg)
 
-int main()
+namespace VulkanUtils
 {
-    system("chcp 65001 >nul");
+    VkPhysicalDevice PickDiscreteDevice(const std::vector<VkPhysicalDevice> &devices)
+    {
+        for (const auto &device: devices) {
+            VkPhysicalDeviceProperties properties;
+            vkGetPhysicalDeviceProperties(device, &properties);
 
-    /*
-     * close stdout and stderr write to buf, let direct
-     * output.
-     */
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-    
-    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "GoghEngine");
-    std::unique_ptr<RenderDevice> renderDevice = std::make_unique<RenderDevice>(window.get());
-    
-    while (!window->IsShouldClose()) {
-        window->PollEvents();
+            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                return device;
+        }
+
+        assert(std::size(devices) > 0);
+        return devices[0];
     }
-    
+
+    void FindQueueIndex(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t *p_index)
+    {
+        uint32_t count;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, VK_NULL_HANDLE);
+
+        std::vector<VkQueueFamilyProperties> properties(count);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &count, std::data(properties));
+
+        for (uint32_t i = 0; i < count; i++) {
+            VkQueueFamilyProperties property = properties[i];
+            VkBool32 supported = VK_FALSE;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
+            if ((property.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supported) {
+                *p_index = i;
+                return;
+            }
+        }
+
+        GOGH_ERROR("Can't not found queue to support present");
+    }
 }

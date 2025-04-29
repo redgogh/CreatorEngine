@@ -18,7 +18,36 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#pragma once
+#include "Window.h"
 
-#include <vector>
-#include <cassert>
+#ifdef _WIN32
+#  define GLFW_EXPOSE_NATIVE_WIN32
+#endif /* _WIN32 */
+#include <GLFW//glfw3native.h>
+
+Window::Window(uint32_t w, uint32_t h, const char *title)
+{
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    hwnd = glfwCreateWindow(w, h, title, nullptr, nullptr);
+}
+
+Window::~Window()
+{
+    glfwDestroyWindow(hwnd);
+}
+
+void *Window::GetNativeWindow()
+{
+    return glfwGetWin32Window(hwnd);
+}
+
+bool Window::IsShouldClose()
+{
+    return glfwWindowShouldClose(hwnd);
+}
+
+void Window::PollEvents()
+{
+    glfwPollEvents();
+}

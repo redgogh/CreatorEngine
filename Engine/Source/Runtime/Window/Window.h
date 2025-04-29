@@ -20,38 +20,20 @@
 
 #pragma once
 
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif /* USE_VOLK_LOADER */
+#include <GLFW/glfw3.h>
 
-#include <vma/vk_mem_alloc.h>
-
-#include "Typedefs.h"
-#include "Window/Window.h"
-
-class RenderDevice
+class Window
 {
 public:
-    RenderDevice(Window *vWindow);
-   ~RenderDevice();
+    Window(uint32_t w, uint32_t h, const char *title);
+   ~Window();
+
+    void* GetNativeWindow();
+
+    bool IsShouldClose();
    
-private:
-    void _InitVkInstance();
-    void _InitVkSurfaceKHR();
-   
-private:
-    Window *window = VK_NULL_HANDLE;
+    void PollEvents();
     
-    uint32_t apiVersion = 0;
-    VkInstance instance = VK_NULL_HANDLE;
-    VkSurfaceKHR surface = VK_NULL_HANDLE;
-    VkPhysicalDevice gpu = VK_NULL_HANDLE;
-    uint32_t queueIndex = 0;
-    VkQueue queue = VK_NULL_HANDLE;
-    VkDevice device = VK_NULL_HANDLE;
-    VmaAllocator allocator = VK_NULL_HANDLE;
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+private:
+    GLFWwindow *hwnd = nullptr;
 };
