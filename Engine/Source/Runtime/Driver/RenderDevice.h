@@ -31,6 +31,7 @@
 #include <Vector.h>
 
 #include "Window/Window.h"
+#include "CommandList.h"
 
 class RenderDevice
 {
@@ -69,7 +70,7 @@ public:
         std::vector<VkSemaphore> acquireIndexSemaphore;
         std::vector<VkSemaphore> renderFinishSemaphore;
         std::vector<VkFence> fence;
-        std::vector<VkCommandBuffer> commandBuffers;
+        std::vector<CommandList*> commandLists;
     };
 
     SwapchainVkEXT* CreateSwapchainEXT(SwapchainVkEXT* oldSwapchainEXT);
@@ -82,8 +83,6 @@ private:
     void _DestroySemaphore(VkSemaphore semaphore);
     VkResult _CreateFence(VkFence* pFence);
     void _DestroyFence(VkFence fence);
-    VkResult _CommandBufferAllocate(VkCommandBuffer* pCommandBuffer);
-    void _CommandBufferFree(VkCommandBuffer commandBuffer);
     
 private:
     void _InitVkInstance();

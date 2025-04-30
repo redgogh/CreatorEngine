@@ -116,7 +116,7 @@ RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* o
     VkResult err;
     std::vector<VkImage> images;
 
-    GOGH_LOGGER_INFO("[Vulkan] Creating new swapchain (oldSwapchainEXT: %p)", oldSwapchainEXT);
+    GOGH_LOGGER_DEBUG("[Vulkan] Creating new swapchain (oldSwapchainEXT: %p)", oldSwapchainEXT);
     
     SwapchainVkEXT* swapchain = MemoryNew<SwapchainVkEXT>();
 
@@ -132,7 +132,7 @@ RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* o
     uint32_t max = swapchain->capabilities.maxImageCount;
     swapchain->minImageCount = std::clamp(min + 1, min, max);
 
-    GOGH_LOGGER_DEBUG("[Vulkan] Swapchain image count: min=%u, max=%u, using=%u", min, max, swapchain->minImageCount);
+    GOGH_LOGGER_INFO("[Vulkan] Swapchain image count: min=%u, max=%u, using=%u", min, max, swapchain->minImageCount);
 
     swapchain->width = swapchain->capabilities.currentExtent.width;
     swapchain->height = swapchain->capabilities.currentExtent.height;
@@ -147,7 +147,7 @@ RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* o
         return VK_NULL_HANDLE;
     }
     
-    GOGH_LOGGER_DEBUG("[Vulkan] Selected surface format: %d, color space: %d", surfaceFormat.format, surfaceFormat.colorSpace);
+    GOGH_LOGGER_INFO("[Vulkan] Selected surface format: %d, color space: %d", surfaceFormat.format, surfaceFormat.colorSpace);
     
     swapchain->format = surfaceFormat.format;
     swapchain->colorSpace = surfaceFormat.colorSpace;
@@ -176,7 +176,7 @@ RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* o
         return VK_NULL_HANDLE;
     }
     
-    GOGH_LOGGER_INFO("[Vulkan] Swapchain created successfully");
+    GOGH_LOGGER_DEBUG("[Vulkan] Swapchain created successfully");
 
 
     if (oldSwapchainEXT != VK_NULL_HANDLE)
@@ -192,22 +192,23 @@ RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* o
     swapchain->acquireIndexSemaphore.resize(swapchain->minImageCount);
     swapchain->renderFinishSemaphore.resize(swapchain->minImageCount);
     swapchain->fence.resize(swapchain->minImageCount);
-    swapchain->commandBuffers.resize(swapchain->minImageCount);
+    swapchain->commandLists.resize(swapchain->minImageCount);
 
-    GOGH_LOGGER_INFO("[Vulkan] Initializing %u swapchain resources...", swapchain->minImageCount);
+    GOGH_LOGGER_DEBUG("[Vulkan] Initializing %u swapchain resources...", swapchain->minImageCount);
     for (int i = 0; i < swapchain->minImageCount; ++i) {
         swapchain->resources[i].image = images[i];
 
-        err = _CreateImageView(swapchain->resources[i].image, swapchain->format, &(swapchain->resources[i].imageView));
-        err = _CreateSemaphore(&(swapchain->acquireIndexSemaphore[i]));
-        err = _CreateSemaphore(&(swapchain->renderFinishSemaphore[i]));
-        err = _CreateFence(&(swapchain->fence[i]));
-        err = _CommandBufferAllocate(&(swapchain->commandBuffers[i]));
+        _CreateImageView(swapchain->resources[i].image, swapchain->format, &(swapchain->resources[i].imageView));
+        _CreateSemaphore(&(swapchain->acquireIndexSemaphore[i]));
+        _CreateSemaphore(&(swapchain->renderFinishSemaphore[i]));
+        _CreateFence(&(swapchain->fence[i]));
+
+        swapchain->commandLists[i] = MemoryNew<CommandList>(device, commandPool, queue);
 
         GOGH_LOGGER_DEBUG("[Vulkan] Initialized swapchain resource %d/%u", i + 1, swapchain->minImageCount);
     }
 
-    GOGH_LOGGER_INFO("[Vulkan] Swapchain created and initialized successfully");
+    GOGH_LOGGER_DEBUG("[Vulkan] Swapchain created and initialized successfully");
     
     return swapchain;
 }
@@ -236,8 +237,8 @@ void RenderDevice::DestroySwapchainEXT(RenderDevice::SwapchainVkEXT *swapchain)
         if (swapchain->fence[i] != VK_NULL_HANDLE)
             _DestroyFence(swapchain->fence[i]);
 
-        if (swapchain->commandBuffers[i] != VK_NULL_HANDLE)
-            _CommandBufferFree(swapchain->commandBuffers[i]);
+        if (swapchain->commandLists[i] != VK_NULL_HANDLE)
+            MemoryDelete(swapchain->commandLists[i]);
     }
 
     vkDestroySwapchainKHR(device, swapchain->vkSwapchainKHR, VK_NULL_HANDLE);
@@ -329,7 +330,7 @@ VkResult RenderDevice::_CreateFence(VkFence *pFence)
         goto TAG_CREATE_FENCE_END;
     }
 
-    GOGH_LOGGER_WARN("[Vulkan] Creating VkFence successful, (VkFence=%p)", *pFence);
+    GOGH_LOGGER_DEBUG("[Vulkan] Creating VkFence successful, (VkFence=%p)", *pFence);
     
 TAG_CREATE_FENCE_END:
     return err;
@@ -339,34 +340,6 @@ void RenderDevice::_DestroyFence(VkFence fence)
 {
     GOGH_LOGGER_DEBUG("[Vulkan] Destroying VkFence %p", fence);
     vkDestroyFence(device, fence, VK_NULL_HANDLE);
-}
-
-VkResult RenderDevice::_CommandBufferAllocate(VkCommandBuffer* pCommandBuffer)
-{
-    VkResult err;
-    
-    VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = commandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1
-    };
-
-    err = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, pCommandBuffer);
-    
-    if (err != VK_SUCCESS) {
-        GOGH_LOGGER_WARN("[Vulkan] Failed allocating VkCommandBuffer %p, (VkCommandPool: %p)", *pCommandBuffer, commandPool);
-        return err;
-    }
-
-    GOGH_LOGGER_DEBUG("[Vulkan] Allocated VkCommandBuffer: %p (VkCommandPool: %p)", *pCommandBuffer, commandPool);
-    return err;
-}
-
-void RenderDevice::_CommandBufferFree(VkCommandBuffer commandBuffer)
-{
-    GOGH_LOGGER_DEBUG("[Vulkan] Free VkCommandBuffer: %p (VkCommandPool: %p)", commandBuffer, commandPool);
-    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
 void RenderDevice::_InitVkInstance()
