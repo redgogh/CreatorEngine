@@ -77,6 +77,16 @@ void RenderDevice::DestroyBuffer(Buffer* buffer)
     MemoryDelete(buffer);
 }
 
+CommandList *RenderDevice::CreateCommandList()
+{
+    return MemoryNew<CommandList>(device, commandPool, queue);
+}
+
+void RenderDevice::DestroyCommandLis(CommandList *commandList)
+{
+    MemoryDelete(commandList);
+}
+
 RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* oldSwapchainEXT)
 {
     VkResult err;
@@ -169,7 +179,7 @@ RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* o
         _CreateSemaphore(&(swapchain->renderFinishSemaphore[i]));
         _CreateFence(&(swapchain->fence[i]));
 
-        swapchain->commandLists[i] = MemoryNew<CommandList>(device, commandPool, queue);
+        swapchain->commandLists[i] = CreateCommandList();
 
         GOGH_LOGGER_DEBUG("[Vulkan] Initialized swapchain resource %d/%u", i + 1, swapchain->minImageCount);
     }
@@ -204,7 +214,7 @@ void RenderDevice::DestroySwapchainEXT(RenderDevice::SwapchainVkEXT *swapchain)
             _DestroyFence(swapchain->fence[i]);
 
         if (swapchain->commandLists[i] != VK_NULL_HANDLE)
-            MemoryDelete(swapchain->commandLists[i]);
+            DestroyCommandLis(swapchain->commandLists[i]);
     }
 
     vkDestroySwapchainKHR(device, swapchain->vkSwapchainKHR, VK_NULL_HANDLE);

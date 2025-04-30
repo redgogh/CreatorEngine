@@ -50,4 +50,3 @@ CommandList::~CommandList()
     GOGH_LOGGER_DEBUG("[Vulkan] Free VkCommandBuffer: %p (VkCommandPool: %p)", commandBuffer, commandPool);
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
-

@@ -20,18 +20,4 @@
 
 #pragma once
 
-#include "VulkanInclude.h"
-#include "Buffer.h"
-
-class CommandList
-{
-public:
-    CommandList(VkDevice _device, VkCommandPool _commandPool, VkQueue _queue);
-   ~CommandList();
-   
-private:
-    VkDevice device = VK_NULL_HANDLE;
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkQueue queue = VK_NULL_HANDLE;
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-};
+#include "Driver/RenderDevice.h"

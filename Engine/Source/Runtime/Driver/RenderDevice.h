@@ -36,7 +36,9 @@ public:
     
     Buffer* CreateBuffer(size_t size, VkBufferUsageFlags usage);
     void DestroyBuffer(Buffer* buffer);
-
+    CommandList* CreateCommandList();
+    void DestroyCommandLis(CommandList* commandList);
+    
     struct SwapchainVkEXT {
         VkSwapchainKHR vkSwapchainKHR = VK_NULL_HANDLE;
         VkSurfaceCapabilitiesKHR capabilities = {};
