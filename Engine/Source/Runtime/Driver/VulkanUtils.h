@@ -56,4 +56,40 @@ namespace VulkanUtils
 
         GOGH_ERROR("Can't not found queue to support present");
     }
+
+    VkResult PickSurfaceFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceFormatKHR* pFormat)
+    {
+        VkResult err;
+
+        uint32_t count;
+        err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &count, VK_NULL_HANDLE);
+        if (err)
+            return err;
+
+        std::vector<VkSurfaceFormatKHR> formats(count);
+        err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &count, std::data(formats));
+        if (err)
+            return err;
+
+        for (const auto &item: formats) {
+            switch (item.format) {
+                case VK_FORMAT_R8G8B8A8_SRGB:
+                case VK_FORMAT_B8G8R8A8_SRGB:
+                case VK_FORMAT_R8G8B8A8_UNORM:
+                case VK_FORMAT_B8G8R8A8_UNORM: {
+                    *pFormat = item;
+                    goto TAG_PICK_SUITABLE_SURFACE_FORMAT_END;
+                }
+            }
+        }
+
+        assert(count >= 1);
+        *pFormat = formats[0];
+
+        GOGH_LOGGER_WARN("[Vulkan] Can't not found suitable surface format, default use first\n");
+
+TAG_PICK_SUITABLE_SURFACE_FORMAT_END:
+        return VK_SUCCESS;
+    }
+    
 }

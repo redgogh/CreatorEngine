@@ -20,28 +20,18 @@
 
 #pragma once
 
-#include <vector>
-#include <algorithm>
+#include <memory>
+
+template<typename T, typename ...Args>
+inline static T* MemoryNew(Args&&... args)
+{
+    return new T(std::forward<Args>(args)...);
+}
 
 template<typename T>
-class Vector : public std::vector<T> {
-public:
-    using std::vector<T>::vector;
-
-    void contains(const T& elem)
-      {
-        return std::find(this->begin(), this->end(), elem) != this->end();
-      }
-
-    void remove(const T& elem)
-      {
-        this->erase(std::remove(this->begin(), this->end(), elem), this->end());
-      }
-
-    T* find_ptr(const T& elem)
-      {
-        auto it = std::find(this->begin(), this->end(), elem);
-        return it != this->end() ? &(*it) : nullptr;
-      }
-
-};
+inline static void MemoryDelete(T* ptr)
+{
+    if (ptr) {
+        delete ptr;
+    }
+}

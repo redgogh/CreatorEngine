@@ -40,6 +40,7 @@ struct EngineContext
 };
 
 static EngineContext* engine = nullptr;
+static RenderDevice* RD = nullptr;
 
 GOGH_API void Gogh_Engine_Init(uint32_t w, uint32_t h, const char *title)
 {
@@ -51,20 +52,26 @@ GOGH_API void Gogh_Engine_Init(uint32_t w, uint32_t h, const char *title)
     engine->window = std::make_unique<Window>(w, h, title);
     engine->renderDevice = std::make_unique<RenderDevice>(engine->window.get());
 
+    RD = engine->renderDevice.get();
+    
     GOGH_LOGGER_DEBUG("[Engine] Initialize successful, engine has start");
+    
+    RenderDevice::SwapchainVkEXT* swpachain = RD->CreateSwapchainEXT(VK_NULL_HANDLE);
+    RD->DestroySwapchainEXT(swpachain);
 }
 
 GOGH_API void Gogh_Engine_Terminate()
 {
     GOGH_LOGGER_DEBUG("[Engine] Terminating engine...");
 
-    if (engine) {
-        delete engine;
-        engine = nullptr;
-        GOGH_LOGGER_DEBUG("[Engine] Engine termination successful");
-    } else {
+    if (!engine) {
         GOGH_LOGGER_WARN("[Engine] Engine was already terminated or not initialized");
+        return;        
     }
+
+    delete engine;
+    engine = nullptr;
+    GOGH_LOGGER_DEBUG("[Engine] Engine termination successful");
 }
 
 GOGH_API GOGH_BOOL Gogh_Engine_IsShouldClose()

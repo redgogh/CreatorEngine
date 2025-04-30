@@ -34,6 +34,7 @@
 #include <Logger.h>
 #include <Error.h>
 #include <Vector.h>
+#include <MM.h>
 
 #include "VulkanUtils.h"
 
@@ -66,6 +67,308 @@ RenderDevice::~RenderDevice()
     vkDestroyInstance(instance, VK_NULL_HANDLE);
 }
 
+RenderDevice::BufferVk* RenderDevice::CreateBuffer(size_t size, VkBufferUsageFlags usage)
+{
+    BufferVk* buffer = MemoryNew<BufferVk>();
+
+    VkBufferCreateInfo bufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    VmaAllocationCreateInfo allocationCreateInfo = {
+        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO,
+    };
+
+    vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &buffer->vkBuffer, &buffer->allocation, &buffer->allocationInfo);
+    
+    buffer->size = size;
+    
+    return buffer;
+}
+
+void RenderDevice::DestroyBuffer(RenderDevice::BufferVk* buffer)
+{
+    MemoryDelete(buffer);
+}
+
+void RenderDevice::ReadBuffer(RenderDevice::BufferVk *buffer, size_t offset, size_t size, void *dst)
+{
+    void* src;
+    vmaMapMemory(allocator, buffer->allocation, &src);
+    memcpy(dst, (static_cast<char*>(src) + offset), size);
+    vmaUnmapMemory(allocator, buffer->allocation);
+}
+
+void RenderDevice::WriteBuffer(BufferVk* buffer, size_t offset, size_t size, const void* src)
+{
+    void* dst;
+    vmaMapMemory(allocator, buffer->allocation, &dst);
+    memcpy((static_cast<char*>(dst) + offset), src, size);
+    vmaUnmapMemory(allocator, buffer->allocation);
+}
+
+RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* oldSwapchainEXT)
+{
+    VkResult err;
+    std::vector<VkImage> images;
+
+    GOGH_LOGGER_INFO("[Vulkan] Creating new swapchain (oldSwapchainEXT: %p)", oldSwapchainEXT);
+    
+    SwapchainVkEXT* swapchain = MemoryNew<SwapchainVkEXT>();
+
+    err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &swapchain->capabilities);
+    if (err != VK_SUCCESS) {
+        GOGH_LOGGER_ERROR("[Vulkan] Failed to get surface capabilities: %d", err);
+        return VK_NULL_HANDLE;
+    }
+    
+    GOGH_LOGGER_DEBUG("[Vulkan] Surface capabilities retrieved successfully");
+    
+    uint32_t min = swapchain->capabilities.minImageCount;
+    uint32_t max = swapchain->capabilities.maxImageCount;
+    swapchain->minImageCount = std::clamp(min + 1, min, max);
+
+    GOGH_LOGGER_DEBUG("[Vulkan] Swapchain image count: min=%u, max=%u, using=%u", min, max, swapchain->minImageCount);
+
+    swapchain->width = swapchain->capabilities.currentExtent.width;
+    swapchain->height = swapchain->capabilities.currentExtent.height;
+    swapchain->aspect = (float) swapchain->width / swapchain->height;
+
+    GOGH_LOGGER_INFO("[Vulkan] Swapchain extent: %ux, %u (aspect: %.2f)", swapchain->width, swapchain->height, swapchain->aspect);
+    
+    VkSurfaceFormatKHR surfaceFormat;
+    err = VulkanUtils::PickSurfaceFormat(physicalDevice, surface, &surfaceFormat);
+    if (err != VK_SUCCESS) {
+        GOGH_LOGGER_ERROR("[Vulkan] Failed to pick suitable surface format");
+        return VK_NULL_HANDLE;
+    }
+    
+    GOGH_LOGGER_DEBUG("[Vulkan] Selected surface format: %d, color space: %d", surfaceFormat.format, surfaceFormat.colorSpace);
+    
+    swapchain->format = surfaceFormat.format;
+    swapchain->colorSpace = surfaceFormat.colorSpace;
+
+    VkSwapchainCreateInfoKHR swapchainCreateInfoKHR = {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = surface,
+        .minImageCount = swapchain->minImageCount,
+        .imageFormat = swapchain->format,
+        .imageColorSpace = swapchain->colorSpace,
+        .imageExtent = swapchain->capabilities.currentExtent,
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .preTransform = swapchain->capabilities.currentTransform,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+        .clipped = VK_TRUE,
+        .oldSwapchain = oldSwapchainEXT != VK_NULL_HANDLE ? oldSwapchainEXT->vkSwapchainKHR : VK_NULL_HANDLE,
+    };
+    
+    err = vkCreateSwapchainKHR(device, &swapchainCreateInfoKHR, VK_NULL_HANDLE, &swapchain->vkSwapchainKHR);
+
+    if (err != VK_SUCCESS) {
+        GOGH_LOGGER_ERROR("[Vulkan] Failed to create swapchain: %d", err);
+        return VK_NULL_HANDLE;
+    }
+    
+    GOGH_LOGGER_INFO("[Vulkan] Swapchain created successfully");
+
+
+    if (oldSwapchainEXT != VK_NULL_HANDLE)
+        DestroySwapchainEXT(oldSwapchainEXT);
+    
+    uint32_t count;
+    vkGetSwapchainImagesKHR(device, swapchain->vkSwapchainKHR, &count, VK_NULL_HANDLE);
+
+    images.resize(count);
+    vkGetSwapchainImagesKHR(device, swapchain->vkSwapchainKHR, &count, std::data(images));
+
+    swapchain->resources.resize(swapchain->minImageCount);
+    swapchain->acquireIndexSemaphore.resize(swapchain->minImageCount);
+    swapchain->renderFinishSemaphore.resize(swapchain->minImageCount);
+    swapchain->fence.resize(swapchain->minImageCount);
+    swapchain->commandBuffers.resize(swapchain->minImageCount);
+
+    GOGH_LOGGER_INFO("[Vulkan] Initializing %u swapchain resources...", swapchain->minImageCount);
+    for (int i = 0; i < swapchain->minImageCount; ++i) {
+        swapchain->resources[i].image = images[i];
+
+        err = _CreateImageView(swapchain->resources[i].image, swapchain->format, &(swapchain->resources[i].imageView));
+        err = _CreateSemaphore(&(swapchain->acquireIndexSemaphore[i]));
+        err = _CreateSemaphore(&(swapchain->renderFinishSemaphore[i]));
+        err = _CreateFence(&(swapchain->fence[i]));
+        err = _CommandBufferAllocate(&(swapchain->commandBuffers[i]));
+
+        GOGH_LOGGER_DEBUG("[Vulkan] Initialized swapchain resource %d/%u", i + 1, swapchain->minImageCount);
+    }
+
+    GOGH_LOGGER_INFO("[Vulkan] Swapchain created and initialized successfully");
+    
+    return swapchain;
+}
+
+void RenderDevice::DestroySwapchainEXT(RenderDevice::SwapchainVkEXT *swapchain)
+{
+    if (swapchain == VK_NULL_HANDLE)
+        return;
+
+    vkQueueWaitIdle(queue);
+
+    GOGH_LOGGER_DEBUG("[Vulkan] Destroying SwapchainEXT, (SwapchainEXT=%p)", swapchain);
+    
+    for (int i = 0; i < swapchain->minImageCount; ++i) {
+        auto resource = swapchain->resources[i];
+
+        if (resource.imageView != VK_NULL_HANDLE)
+            _DestroyImageView(resource.imageView);
+
+        if (swapchain->acquireIndexSemaphore[i] != VK_NULL_HANDLE)
+            _DestroySemaphore(swapchain->acquireIndexSemaphore[i]);
+
+        if (swapchain->renderFinishSemaphore[i] != VK_NULL_HANDLE)
+            _DestroySemaphore(swapchain->renderFinishSemaphore[i]);
+
+        if (swapchain->fence[i] != VK_NULL_HANDLE)
+            _DestroyFence(swapchain->fence[i]);
+
+        if (swapchain->commandBuffers[i] != VK_NULL_HANDLE)
+            _CommandBufferFree(swapchain->commandBuffers[i]);
+    }
+
+    vkDestroySwapchainKHR(device, swapchain->vkSwapchainKHR, VK_NULL_HANDLE);
+    MemoryDelete(swapchain);
+}
+
+VkResult RenderDevice::_CreateImageView(VkImage image, VkFormat format, VkImageView *pImageView)
+{
+    VkResult err;
+    
+    VkImageViewCreateInfo imageViewCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+    
+    err = vkCreateImageView(device, &imageViewCreateInfo, VK_NULL_HANDLE, pImageView);
+    
+    if (err != VK_SUCCESS) {
+        GOGH_LOGGER_WARN("[Vulkan] Failed to creating VkImageView, VkImage=%p, VkFormat=%d", image, format);
+        goto TAG_CREATE_IMAGE_VIEW_END;
+    }
+
+    GOGH_LOGGER_DEBUG("[Vulkan] Creating VkImageView successful, (VkImage=%p, VkFormat=%d, VkImageView=%p)", image, format, *pImageView);
+    
+TAG_CREATE_IMAGE_VIEW_END:
+    return err;
+}
+
+void RenderDevice::_DestroyImageView(VkImageView imageView)
+{
+    GOGH_LOGGER_DEBUG("[Vulkan] Destroying VkImageView %p", imageView);
+    vkDestroyImageView(device, imageView, VK_NULL_HANDLE);
+}
+
+VkResult RenderDevice::_CreateSemaphore(VkSemaphore *pSemaphore)
+{
+    VkResult err;
+    
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+
+    err = vkCreateSemaphore(device, &semaphoreCreateInfo, VK_NULL_HANDLE, pSemaphore);
+    
+    if (err != VK_SUCCESS) {
+        GOGH_LOGGER_WARN("[Vulkan] Failed to creating VkSemaphore");
+        goto TAG_CREATE_SEMAPHORE_END;
+    }
+
+    GOGH_LOGGER_DEBUG("[Vulkan] Creating VkSemaphore successful, (VkSemaphore=%p)", *pSemaphore);
+
+TAG_CREATE_SEMAPHORE_END:
+    return err;
+}
+
+void RenderDevice::_DestroySemaphore(VkSemaphore semaphore)
+{
+    GOGH_LOGGER_DEBUG("[Vulkan] Destroying VkSemaphore %p", semaphore);
+    vkDestroySemaphore(device, semaphore, VK_NULL_HANDLE);
+}
+
+VkResult RenderDevice::_CreateFence(VkFence *pFence)
+{
+    VkResult err;
+    
+    VkFenceCreateInfo fenceCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+    };
+
+    err = vkCreateFence(device, &fenceCreateInfo, VK_NULL_HANDLE, pFence);
+    
+    if (err != VK_SUCCESS) {
+        GOGH_LOGGER_WARN("[Vulkan] Failed to creating VkFence");
+        goto TAG_CREATE_FENCE_END;
+    }
+
+    GOGH_LOGGER_WARN("[Vulkan] Creating VkFence successful, (VkFence=%p)", *pFence);
+    
+TAG_CREATE_FENCE_END:
+    return err;
+}
+
+void RenderDevice::_DestroyFence(VkFence fence)
+{
+    GOGH_LOGGER_DEBUG("[Vulkan] Destroying VkFence %p", fence);
+    vkDestroyFence(device, fence, VK_NULL_HANDLE);
+}
+
+VkResult RenderDevice::_CommandBufferAllocate(VkCommandBuffer* pCommandBuffer)
+{
+    VkResult err;
+    
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = commandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1
+    };
+
+    err = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, pCommandBuffer);
+    
+    if (err != VK_SUCCESS) {
+        GOGH_LOGGER_WARN("[Vulkan] Failed allocating VkCommandBuffer %p, (VkCommandPool: %p)", *pCommandBuffer, commandPool);
+        return err;
+    }
+
+    GOGH_LOGGER_DEBUG("[Vulkan] Allocated VkCommandBuffer: %p (VkCommandPool: %p)", *pCommandBuffer, commandPool);
+    return err;
+}
+
+void RenderDevice::_CommandBufferFree(VkCommandBuffer commandBuffer)
+{
+    GOGH_LOGGER_DEBUG("[Vulkan] Free VkCommandBuffer: %p (VkCommandPool: %p)", commandBuffer, commandPool);
+    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}
+
 void RenderDevice::_InitVkInstance()
 {
     VkResult err;
@@ -74,9 +377,9 @@ void RenderDevice::_InitVkInstance()
 
     VkApplicationInfo applicationInfo = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = "Vernak Engine",
+        .pApplicationName = "GOGH_ENG_CORE",
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = "Vernak Engine",
+        .pEngineName = "GOGH_ENG_CORE",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
         .apiVersion = this->apiVersion
     };
@@ -104,7 +407,7 @@ void RenderDevice::_InitVkInstance()
     err = vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &instance);
     VK_ERROR_CHECK(err, "vkCreateInstance(...)");
 
-    GOGH_LOGGER_DEBUG("[Vulkan] Create instance successful");
+    GOGH_LOGGER_DEBUG("[Vulkan] Create instance successful, (instance=%p)", instance);
 
 #ifdef USE_VOLK_LOADER
     volkLoadInstance(instance);
@@ -126,7 +429,7 @@ void RenderDevice::_InitVkSurfaceKHR()
     err = vkCreateWin32SurfaceKHR(instance, &win32SurfaceCreateInfo, VK_NULL_HANDLE, &surface);
     GOGH_ASSERT(!err && "vkCreateWin32SurfaceKHR(...)");
 
-    GOGH_LOGGER_DEBUG("[Vulkan] Create win32 surface khr successful");
+    GOGH_LOGGER_DEBUG("[Vulkan] Create win32 surface khr successful, (surface=%p)", surface);
 }
 
 void RenderDevice::_InitVKDevice()
@@ -149,11 +452,11 @@ void RenderDevice::_InitVKDevice()
 
     float priorities = 1.0f;
 
-    VulkanUtils::FindQueueIndex(physicalDevice, surface, &queueIndex);
+    VulkanUtils::FindQueueIndex(physicalDevice, surface, &queueFamilyIndex);
 
-    VkDeviceQueueCreateInfo queue_ci = {
+    VkDeviceQueueCreateInfo deviceQueueCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .queueFamilyIndex = queueIndex,
+        .queueFamilyIndex = queueFamilyIndex,
         .queueCount = 1,
         .pQueuePriorities = &priorities,
     };
@@ -176,24 +479,27 @@ void RenderDevice::_InitVKDevice()
         .dynamicRendering = VK_TRUE,
     };
 
-    VkDeviceCreateInfo device_ci = {
+    VkDeviceCreateInfo deviceCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = &dynamicRenderingFeatures,
         .queueCreateInfoCount = 1,
-        .pQueueCreateInfos = &queue_ci,
+        .pQueueCreateInfos = &deviceQueueCreateInfo,
         .enabledExtensionCount = (uint32_t) std::size(extensions),
         .ppEnabledExtensionNames = std::data(extensions),
     };
 
-    err = vkCreateDevice(physicalDevice, &device_ci, VK_NULL_HANDLE, &device);
+    err = vkCreateDevice(physicalDevice, &deviceCreateInfo, VK_NULL_HANDLE, &device);
     VK_ERROR_CHECK(err, "Failed to create logic device");
 
-    GOGH_LOGGER_DEBUG("[Vulkan] Create device successful");
+    GOGH_LOGGER_DEBUG("[Vulkan] Create device successful, (device=%p)", device);
     
 #ifdef USE_VOLK_LOADER
     volkLoadDevice(device);
     GOGH_LOGGER_DEBUG("[Vulkan] Volk load device proc addr successful");
 #endif
+    
+    vkGetDeviceQueue(device, queueFamilyIndex, 0, &queue);
+    GOGH_LOGGER_DEBUG("[Vulkan] Get device queue handle, (queueFamilyIndex=%u, queue=%p)", queueFamilyIndex, queue);
 }
 
 void RenderDevice::_InitVMAAllocator()
@@ -225,13 +531,13 @@ void RenderDevice::_InitVkCommandPool()
     VkCommandPoolCreateInfo commandPoolCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = queueIndex,
+        .queueFamilyIndex = queueFamilyIndex,
     };
 
     err = vkCreateCommandPool(device, &commandPoolCreateInfo, VK_NULL_HANDLE, &commandPool);
     VK_ERROR_CHECK(err, "Failed to create command pool");
 
-    GOGH_LOGGER_DEBUG("[Vulkan] Create command pool successful");
+    GOGH_LOGGER_DEBUG("[Vulkan] Create command pool successful, (commandPool=%p)", commandPool);
 }
 
 void RenderDevice::_InitVkDescriptorPool()
@@ -263,5 +569,5 @@ void RenderDevice::_InitVkDescriptorPool()
     err = vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, VK_NULL_HANDLE, &descriptorPool);
     VK_ERROR_CHECK(err, "Failed to create descriptor pool");
 
-    GOGH_LOGGER_DEBUG("[Vulkan] Create descriptor pool successful");
+    GOGH_LOGGER_DEBUG("[Vulkan] Create descriptor pool successful, (VkDescriptorPool=%p)", descriptorPool);
 }

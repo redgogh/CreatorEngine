@@ -39,6 +39,8 @@ int main()
     
     while (!Gogh_Engine_IsShouldClose()) {
         Gogh_Engine_PollEvents();
+        Gogh_Engine_BeginNewFrame();
+        Gogh_Engine_EndNewFrame();
     }
  
     Gogh_Engine_Terminate();

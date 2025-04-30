@@ -28,6 +28,8 @@
 
 #include <vma/vk_mem_alloc.h>
 
+#include <Vector.h>
+
 #include "Window/Window.h"
 
 class RenderDevice
@@ -42,7 +44,47 @@ public:
         VmaAllocation allocation = VK_NULL_HANDLE;
         VmaAllocationInfo allocationInfo = {};
     };
-   
+    
+    BufferVk* CreateBuffer(size_t size, VkBufferUsageFlags usage);
+    void DestroyBuffer(BufferVk* buffer);
+    void ReadBuffer(BufferVk* buffer, size_t offset, size_t size, void* dst);
+    void WriteBuffer(BufferVk* buffer, size_t offset, size_t size, const void* src);
+
+    struct SwapchainVkEXT {
+        VkSwapchainKHR vkSwapchainKHR = VK_NULL_HANDLE;
+        VkSurfaceCapabilitiesKHR capabilities = {};
+        uint32_t minImageCount = 0;
+        VkFormat format = VK_FORMAT_UNDEFINED;
+        VkColorSpaceKHR colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+        struct SwapchainResourceVkEXT {
+            VkImage image = VK_NULL_HANDLE;
+            VkImageView imageView = VK_NULL_HANDLE;
+        };
+        Vector<SwapchainResourceVkEXT> resources;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t acquireIndex = 0;
+        uint32_t frame = 0;
+        float aspect = 0.0f;
+        std::vector<VkSemaphore> acquireIndexSemaphore;
+        std::vector<VkSemaphore> renderFinishSemaphore;
+        std::vector<VkFence> fence;
+        std::vector<VkCommandBuffer> commandBuffers;
+    };
+
+    SwapchainVkEXT* CreateSwapchainEXT(SwapchainVkEXT* oldSwapchainEXT);
+    void DestroySwapchainEXT(SwapchainVkEXT* swapchain);
+
+private:
+    VkResult _CreateImageView(VkImage image, VkFormat formamt, VkImageView* pImageView);
+    void _DestroyImageView(VkImageView imageView);
+    VkResult _CreateSemaphore(VkSemaphore* pSemaphore);
+    void _DestroySemaphore(VkSemaphore semaphore);
+    VkResult _CreateFence(VkFence* pFence);
+    void _DestroyFence(VkFence fence);
+    VkResult _CommandBufferAllocate(VkCommandBuffer* pCommandBuffer);
+    void _CommandBufferFree(VkCommandBuffer commandBuffer);
+    
 private:
     void _InitVkInstance();
     void _InitVkSurfaceKHR();
@@ -53,12 +95,12 @@ private:
    
 private:
     Window *window = VK_NULL_HANDLE;
-    
+
     uint32_t apiVersion = 0;
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    uint32_t queueIndex = 0;
+    uint32_t queueFamilyIndex = 0;
     VkQueue queue = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
     VmaAllocator allocator = VK_NULL_HANDLE;
