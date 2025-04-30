@@ -18,77 +18,25 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#include <Engine/Engine.h>
+#pragma once
 
-#include "Window/Window.h"
-#include "Driver/RenderDevice.h"
+#include "VulkanInclude.h"
 
-// std
-#include <memory>
-
-// include
-#include <Error.h>
-#include <Logger.h>
-
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "NullDereference"
-
-struct EngineContext
+class Buffer
 {
-    std::unique_ptr<Window> window;
-    std::unique_ptr<RenderDevice> renderDevice;
+public:
+    Buffer(VmaAllocator _allocator, size_t _allocateSize, VkBufferUsageFlags _usage);
+   ~Buffer();
+
+    void ReadBack(size_t offset, size_t size, void *dst);
+    void Write(size_t offset, size_t size, const void* src);
+    
+private:
+    VmaAllocator allocator = VK_NULL_HANDLE;
+    size_t allocateSize = 0;
+    VkBufferUsageFlags usage = 0;
+    
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
+    VmaAllocationInfo allocationInfo = {};
 };
-
-static EngineContext* engine = nullptr;
-static RenderDevice* RD = nullptr;
-
-GOGH_API void Gogh_Engine_Init(uint32_t w, uint32_t h, const char *title)
-{
-    if (engine)
-        return;
-    
-    engine = new EngineContext();
-    
-    engine->window = std::make_unique<Window>(w, h, title);
-    engine->renderDevice = std::make_unique<RenderDevice>(engine->window.get());
-
-    RD = engine->renderDevice.get();
-    
-    GOGH_LOGGER_DEBUG("[Engine] Initialize successful, engine has start");
-}
-
-GOGH_API void Gogh_Engine_Terminate()
-{
-    GOGH_LOGGER_DEBUG("[Engine] Terminating engine...");
-
-    if (!engine) {
-        GOGH_LOGGER_WARN("[Engine] Engine was already terminated or not initialized");
-        return;        
-    }
-
-    delete engine;
-    engine = nullptr;
-    GOGH_LOGGER_DEBUG("[Engine] Engine termination successful");
-}
-
-GOGH_API GOGH_BOOL Gogh_Engine_IsShouldClose()
-{
-    return engine->window->IsShouldClose();
-}
-
-GOGH_API void Gogh_Engine_PollEvents()
-{
-    engine->window->PollEvents();
-}
-
-GOGH_API void Gogh_Engine_BeginNewFrame()
-{
-    
-}
-
-GOGH_API void Gogh_Engine_EndNewFrame()
-{
-    
-}
-
-#pragma clang diagnostic pop

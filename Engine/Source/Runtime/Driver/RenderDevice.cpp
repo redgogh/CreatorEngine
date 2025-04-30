@@ -67,48 +67,14 @@ RenderDevice::~RenderDevice()
     vkDestroyInstance(instance, VK_NULL_HANDLE);
 }
 
-RenderDevice::BufferVk* RenderDevice::CreateBuffer(size_t size, VkBufferUsageFlags usage)
+Buffer* RenderDevice::CreateBuffer(size_t size, VkBufferUsageFlags usage)
 {
-    BufferVk* buffer = MemoryNew<BufferVk>();
-
-    VkBufferCreateInfo bufferCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = usage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    };
-
-    VmaAllocationCreateInfo allocationCreateInfo = {
-        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO,
-    };
-
-    vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &buffer->vkBuffer, &buffer->allocation, &buffer->allocationInfo);
-    
-    buffer->size = size;
-    
-    return buffer;
+    return MemoryNew<Buffer>(allocator, size, usage);
 }
 
-void RenderDevice::DestroyBuffer(RenderDevice::BufferVk* buffer)
+void RenderDevice::DestroyBuffer(Buffer* buffer)
 {
     MemoryDelete(buffer);
-}
-
-void RenderDevice::ReadBuffer(RenderDevice::BufferVk *buffer, size_t offset, size_t size, void *dst)
-{
-    void* src;
-    vmaMapMemory(allocator, buffer->allocation, &src);
-    memcpy(dst, (static_cast<char*>(src) + offset), size);
-    vmaUnmapMemory(allocator, buffer->allocation);
-}
-
-void RenderDevice::WriteBuffer(BufferVk* buffer, size_t offset, size_t size, const void* src)
-{
-    void* dst;
-    vmaMapMemory(allocator, buffer->allocation, &dst);
-    memcpy((static_cast<char*>(dst) + offset), src, size);
-    vmaUnmapMemory(allocator, buffer->allocation);
 }
 
 RenderDevice::SwapchainVkEXT* RenderDevice::CreateSwapchainEXT(SwapchainVkEXT* oldSwapchainEXT)

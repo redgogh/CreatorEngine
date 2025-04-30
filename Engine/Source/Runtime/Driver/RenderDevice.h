@@ -20,36 +20,22 @@
 
 #pragma once
 
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif /* USE_VOLK_LOADER */
+#include "VulkanInclude.h"
+#include "Window/Window.h"
 
-#include <vma/vk_mem_alloc.h>
+#include "CommandList.h"
+#include "Buffer.h"
 
 #include <Vector.h>
-
-#include "Window/Window.h"
-#include "CommandList.h"
 
 class RenderDevice
 {
 public:
     RenderDevice(Window* pWindow);
    ~RenderDevice();
-
-    struct BufferVk {
-        VkBuffer vkBuffer = VK_NULL_HANDLE;
-        VkDeviceSize size = 0;
-        VmaAllocation allocation = VK_NULL_HANDLE;
-        VmaAllocationInfo allocationInfo = {};
-    };
     
-    BufferVk* CreateBuffer(size_t size, VkBufferUsageFlags usage);
-    void DestroyBuffer(BufferVk* buffer);
-    void ReadBuffer(BufferVk* buffer, size_t offset, size_t size, void* dst);
-    void WriteBuffer(BufferVk* buffer, size_t offset, size_t size, const void* src);
+    Buffer* CreateBuffer(size_t size, VkBufferUsageFlags usage);
+    void DestroyBuffer(Buffer* buffer);
 
     struct SwapchainVkEXT {
         VkSwapchainKHR vkSwapchainKHR = VK_NULL_HANDLE;
