@@ -18,50 +18,73 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#pragma once
-
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif /* USE_VOLK_LOADER */
-
-#include <vma/vk_mem_alloc.h>
+#include <Engine/Engine.h>
 
 #include "Window/Window.h"
+#include "Driver/RenderDevice.h"
 
-class RenderDevice
+// std
+#include <memory>
+
+// include
+#include <Error.h>
+#include <Logger.h>
+
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "NullDereference"
+
+struct EngineContext
 {
-public:
-    RenderDevice(Window* pWindow);
-   ~RenderDevice();
-
-    struct BufferVk {
-        VkBuffer vkBuffer = VK_NULL_HANDLE;
-        VkDeviceSize size = 0;
-        VmaAllocation allocation = VK_NULL_HANDLE;
-        VmaAllocationInfo allocationInfo = {};
-    };
-   
-private:
-    void _InitVkInstance();
-    void _InitVkSurfaceKHR();
-    void _InitVKDevice();
-    void _InitVMAAllocator();
-    void _InitVkCommandPool();
-    void _InitVkDescriptorPool();
-   
-private:
-    Window *window = VK_NULL_HANDLE;
-    
-    uint32_t apiVersion = 0;
-    VkInstance instance = VK_NULL_HANDLE;
-    VkSurfaceKHR surface = VK_NULL_HANDLE;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    uint32_t queueIndex = 0;
-    VkQueue queue = VK_NULL_HANDLE;
-    VkDevice device = VK_NULL_HANDLE;
-    VmaAllocator allocator = VK_NULL_HANDLE;
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    std::unique_ptr<Window> window;
+    std::unique_ptr<RenderDevice> renderDevice;
 };
+
+static EngineContext* engine = nullptr;
+
+GOGH_API void Gogh_Engine_Init(uint32_t w, uint32_t h, const char *title)
+{
+    if (engine)
+        return;
+    
+    engine = new EngineContext();
+    
+    engine->window = std::make_unique<Window>(w, h, title);
+    engine->renderDevice = std::make_unique<RenderDevice>(engine->window.get());
+
+    GOGH_LOGGER_DEBUG("[Engine] Initialize successful, engine has start");
+}
+
+GOGH_API void Gogh_Engine_Terminate()
+{
+    GOGH_LOGGER_DEBUG("[Engine] Terminating engine...");
+
+    if (engine) {
+        delete engine;
+        engine = nullptr;
+        GOGH_LOGGER_DEBUG("[Engine] Engine termination successful");
+    } else {
+        GOGH_LOGGER_WARN("[Engine] Engine was already terminated or not initialized");
+    }
+}
+
+GOGH_API GOGH_BOOL Gogh_Engine_IsShouldClose()
+{
+    return engine->window->IsShouldClose();
+}
+
+GOGH_API void Gogh_Engine_PollEvents()
+{
+    engine->window->PollEvents();
+}
+
+GOGH_API void Gogh_Engine_BeginNewFrame()
+{
+    
+}
+
+GOGH_API void Gogh_Engine_EndNewFrame()
+{
+    
+}
+
+#pragma clang diagnostic pop

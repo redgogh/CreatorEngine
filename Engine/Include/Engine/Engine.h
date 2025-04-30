@@ -20,7 +20,23 @@
 
 #pragma once
 
-#include "Driver/RenderDevice.h"
 // std
-#include <cstdio>
-#include <memory>
+#include <Typedef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
+GOGH_API void Gogh_Engine_Init(uint32_t w, uint32_t h, const char *title);
+GOGH_API void Gogh_Engine_Terminate();
+
+GOGH_API GOGH_BOOL Gogh_Engine_IsShouldClose();
+GOGH_API void Gogh_Engine_PollEvents();
+
+GOGH_API void Gogh_Engine_BeginNewFrame();
+GOGH_API void Gogh_Engine_EndNewFrame();
+
+#ifdef __cplusplus
+}
+#endif

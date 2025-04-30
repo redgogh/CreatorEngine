@@ -20,6 +20,10 @@
 
 #include <Engine/Engine.h>
 
+// std
+#include <stdio.h>
+#include <stdlib.h>
+
 int main()
 {
     system("chcp 65001 >nul");
@@ -30,12 +34,13 @@ int main()
      */
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+
+    Gogh_Engine_Init(800, 600, "Game");
     
-    std::unique_ptr<Window> window = std::make_unique<Window>(800, 600, "GoghEngine");
-    std::unique_ptr<RenderDevice> renderDevice = std::make_unique<RenderDevice>(window.get());
-    
-    while (!window->IsShouldClose()) {
-        window->PollEvents();
+    while (!Gogh_Engine_IsShouldClose()) {
+        Gogh_Engine_PollEvents();
     }
+ 
+    Gogh_Engine_Terminate();
     
 }
