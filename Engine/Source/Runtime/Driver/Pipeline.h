@@ -20,14 +20,18 @@
 
 #pragma once
 
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif /* USE_VOLK_LOADER */
+#include "VulkanInclude.h"
 
-#include <vma/vk_mem_alloc.h>
-
-#include <Logger.h>
-#include <Vector.h>
-#include <HashMap.h>
+class Pipeline
+{
+private:
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipelineCache pipelineCache = VK_NULL_HANDLE;
+    
+    struct DescriptorSetInfo {
+        VkDescriptorSetLayout descriptorSetLayout;
+        HashMap<String, VkDescriptorSet> descriptorSet;
+    };
+    
+};

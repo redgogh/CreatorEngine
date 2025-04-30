@@ -20,14 +20,11 @@
 
 #pragma once
 
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif /* USE_VOLK_LOADER */
+#include <string>
+#include <string_view>
+#include <format>
 
-#include <vma/vk_mem_alloc.h>
-
-#include <Logger.h>
-#include <Vector.h>
-#include <HashMap.h>
+class String : public std::string {
+public:
+    using std::string::string;
+};

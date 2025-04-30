@@ -20,14 +20,29 @@
 
 #pragma once
 
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif /* USE_VOLK_LOADER */
+#include <unordered_map>
+#include <algorithm>
+#include <String.h>
 
-#include <vma/vk_mem_alloc.h>
+template<typename K, typename V>
+class HashMap : public std::unordered_map<K, V> {
+public:
+    using std::unordered_map<K, V>::unordered_map;
 
-#include <Logger.h>
-#include <Vector.h>
-#include <HashMap.h>
+    void contains(const K& elem)
+      {
+        return std::find(this->begin(), this->end(), elem) != this->end();
+      }
+
+    void remove(const K& elem)
+      {
+        this->erase(std::remove(this->begin(), this->end(), elem), this->end());
+      }
+
+    V* find_ptr(const K& elem)
+      {
+        auto it = std::find(this->begin(), this->end(), elem);
+        return it != this->end() ? &(*it) : nullptr;
+      }
+
+};

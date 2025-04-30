@@ -18,16 +18,4 @@
 
 /* Create by Red Gogh on 2025/4/22 */
 
-#pragma once
-
-#ifdef USE_VOLK_LOADER
-#  include <volk/volk.h>
-#else
-#  include <vulkan/vulkan.h>
-#endif /* USE_VOLK_LOADER */
-
-#include <vma/vk_mem_alloc.h>
-
-#include <Logger.h>
-#include <Vector.h>
-#include <HashMap.h>
+#include "Pipeline.h"
